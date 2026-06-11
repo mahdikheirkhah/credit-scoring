@@ -79,3 +79,22 @@ class BaselinePreprocessor:
         except Exception as e:
             logger.error(f"Failed during fit_transform: {e}")
             raise
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transforms new data using the already fitted pipeline.
+        Crucial for validation and test sets to prevent data leakage.
+        """
+        try:
+            logger.info("Transforming validation/test data...")
+            if self.preprocessor is None or self.feature_names is None:
+                raise ValueError("The pipeline has not been fitted yet. Call fit_transform first.")
+            
+            # Apply the memorized transformations (scaling, WoE, etc.) without re-fitting
+            X_processed = self.preprocessor.transform(X)
+            
+            logger.info(f"Successfully transformed data. Shape: {X_processed.shape}")
+            return pd.DataFrame(X_processed, columns=self.feature_names, index=X.index)
+        except Exception as e:
+            logger.error(f"Failed during transform: {e}")
+            raise
