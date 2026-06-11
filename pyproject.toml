@@ -1,0 +1,25 @@
+[project]
+name = "credit-scoring-econometric-ml"
+version = "0.1.0"
+description = "Double-Tree Econometric ML model for credit scoring"
+authors = [
+    {name = "mahdi kheirkha",email = "mahdikheirkhah060@gmail.com"}
+]
+package-mode = false
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "pandas (>=3.0.3,<4.0.0)",
+    "scikit-learn (>=1.9.0,<2.0.0)",
+    "xgboost (>=3.2.0,<4.0.0)",
+    "lightgbm (>=4.6.0,<5.0.0)",
+    "shap (==0.44.1)",
+    "dash (>=4.2.0,<5.0.0)",
+    "loguru (>=0.7.3,<0.8.0)"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
