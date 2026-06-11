@@ -4,7 +4,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-
+from category_encoders import WOEEncoder
 
 class BaselinePreprocessor:
     """
@@ -95,13 +95,6 @@ class BaselinePreprocessor:
             raise
 
     def build_pipeline(self, numeric_features: list[str], categorical_features: list[str]) -> None:
-        """
-        Builds the Scikit-Learn preprocessing pipeline to handle missing values and scaling.
-        
-        Args:
-            numeric_features (list[str]): List of numeric column names.
-            categorical_features (list[str]): List of categorical column names.
-        """
         try:
             numeric_transformer = Pipeline(steps=[
                 ('imputer', SimpleImputer(strategy='median')),
@@ -110,7 +103,7 @@ class BaselinePreprocessor:
 
             categorical_transformer = Pipeline(steps=[
                 ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-                ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+                ('woe', WOEEncoder())  # <-- REPLACED ONEHOTENCODER
             ])
 
             self.preprocessor = ColumnTransformer(
@@ -118,24 +111,20 @@ class BaselinePreprocessor:
                     ('num', numeric_transformer, numeric_features),
                     ('cat', categorical_transformer, categorical_features)
                 ])
-            logger.info("Successfully built preprocessing pipeline.")
+            logger.info("Successfully built preprocessing pipeline with WoE Encoding.")
         except Exception as e:
             logger.error(f"Failed to build preprocessing pipeline: {e}")
             raise
 
-    def fit_transform(self, X: pd.DataFrame) -> pd.DataFrame:
+    def fit_transform(self, X: pd.DataFrame, y: pd.Series = None) -> pd.DataFrame:
         """
         Fits the pipeline on the training data and transforms it.
-        
-        Args:
-            X (pd.DataFrame): The raw training features.
-            
-        Returns:
-            pd.DataFrame: The preprocessed training features.
+        Now requires 'y' to calculate Weight of Evidence.
         """
         try:
             logger.info("Fitting and transforming data...")
-            X_processed = self.preprocessor.fit_transform(X)
+            # Pass y into the fit_transform method!
+            X_processed = self.preprocessor.fit_transform(X, y)
             self.feature_names = self.preprocessor.get_feature_names_out()
             
             logger.info(f"Successfully processed data. New shape: {X_processed.shape}")

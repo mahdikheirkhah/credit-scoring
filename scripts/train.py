@@ -6,7 +6,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from preprocess import BaselinePreprocessor
-
+from feature_engineering import RelationalFeatureEngineer
+from sklearn.feature_selection import RFE
 
 class EconometricBaselineModel:
     """
@@ -92,21 +93,15 @@ class EconometricBaselineModel:
             raise
 
     def save_pipeline(self, preprocessor_obj: BaselinePreprocessor, filepath: str) -> None:
-        """
-        Saves the fitted preprocessor and trained model to disk for future inference.
-        
-        Args:
-            preprocessor_obj (BaselinePreprocessor): The fitted preprocessor instance.
-            filepath (str): The destination path for the .pkl file.
-        """
         try:
             logger.info(f"Saving inference pipeline to {filepath}...")
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             
-            # We bundle them together so they never get separated
             pipeline_data = {
                 'preprocessor': preprocessor_obj.preprocessor,
                 'feature_names': preprocessor_obj.feature_names,
+                'selector': getattr(self, 'selector', None), # <-- NEW: Save the RFE selector
+                'selected_feature_names': getattr(self, 'selected_feature_names', None), # <-- NEW
                 'model': self.model
             }
             joblib.dump(pipeline_data, filepath)
@@ -115,41 +110,94 @@ class EconometricBaselineModel:
             logger.error(f"Failed to save pipeline: {e}")
             raise
 
+    def select_features(self, X: pd.DataFrame, y: pd.Series, n_features: int = 30) -> pd.DataFrame:
+        """
+        Uses Recursive Feature Elimination (RFE) to combat feature bloat
+        by selecting the most predictive, independent features.
+        
+        Args:
+            X (pd.DataFrame): The fully preprocessed (and WoE encoded) features.
+            y (pd.Series): The target variable.
+            n_features (int): The number of features to keep.
+            
+        Returns:
+            pd.DataFrame: The filtered dataset containing only the best features.
+        """
+        try:
+            logger.info(f"Starting RFE to select top {n_features} features out of {X.shape[1]}...")
+            
+            # We use our baseline model logic to evaluate the features
+            estimator = LogisticRegression(
+                class_weight='balanced', 
+                max_iter=1000, 
+                random_state=self.random_state
+            )
+            
+            # step=0.1 means it drops the worst 10% of features at each step (much faster than dropping 1 by 1)
+            self.selector = RFE(estimator=estimator, n_features_to_select=n_features, step=0.1)
+            
+            X_selected = self.selector.fit_transform(X, y)
+            
+            # Extract the names of the features that survived the elimination
+            selected_columns = X.columns[self.selector.support_]
+            self.selected_feature_names = selected_columns.tolist()
+            
+            logger.info(f"RFE complete. Maintained transparency with {len(self.selected_feature_names)} features.")
+            return pd.DataFrame(X_selected, columns=selected_columns, index=X.index)
+            
+        except Exception as e:
+            logger.error(f"Failed during RFE feature selection: {e}")
+            raise
+
 
 if __name__ == "__main__":
     try:
         # 1. Initialize tools
         preprocessor = BaselinePreprocessor()
         baseline_model = EconometricBaselineModel()
+        feature_engineer = RelationalFeatureEngineer()  # <-- Initialize new tool
 
-        # 2. Load Data and inspect types
-        # Note: If memory or speed is an issue during initial testing, 
-        # you can pass `nrows=10000` to `pd.read_csv` inside the load_data method.
+        # 2. Load Data
         df = preprocessor.load_data("data/application_train.csv")
+        bureau_df = preprocessor.load_data("data/bureau.csv")
+        prev_app_df = preprocessor.load_data("data/previous_application.csv")
         
+        # 3. Feature Engineering (The Proxies)
+        logger.info("Starting relational feature engineering...")
+        bureau_proxies = feature_engineer.aggregate_bureau(bureau_df)
+        prev_proxies = feature_engineer.aggregate_previous_applications(prev_app_df)
+        
+        # Merge the proxies into the main application DataFrame
+        df = feature_engineer.merge_features(df, [bureau_proxies, prev_proxies])
+
         # Log the raw column types for the audit trail
         preprocessor.log_column_types(df)
         
-        # Split target and features. We drop SK_ID_CURR so it doesn't leak into the model.
+        # 4. Split target and features. 
+        # We drop SK_ID_CURR so it doesn't leak into the model.
         y = df['TARGET']
         X = df.drop(columns=['TARGET', 'SK_ID_CURR'])
 
-        # 3. Preprocess using our new dynamic feature extractor
+        # 5. Preprocess using our dynamic feature extractor (with WoE Encoding)
         numeric_cols, categorical_cols = preprocessor.get_feature_types(X)
         preprocessor.build_pipeline(numeric_cols, categorical_cols)
-        X_processed = preprocessor.fit_transform(X)
+        X_processed = preprocessor.fit_transform(X, y) # <-- Remember to pass 'y' for WoE!
 
-        # 4. Train and Evaluate using Cross-Validation
-        baseline_model.evaluate_cv(X_processed, y)
+        # 6. Apply RFE to drop from ~300 features down to the top 30
+        X_selected = baseline_model.select_features(X_processed, y, n_features=30)
 
-        # 5. Interpretability: Fit on full data once to get final global coefficients
+        # 7. Train and Evaluate using Cross-Validation on the FILTERED data
+        baseline_model.evaluate_cv(X_selected, y)
+
+        # 8. Interpretability: Fit on full data once to get final global coefficients
         logger.info("Fitting model on the entire dataset to extract final global coefficients...")
-        baseline_model.model.fit(X_processed, y)
-        coef_df = baseline_model.extract_coefficients(preprocessor.feature_names)
+        baseline_model.model.fit(X_selected, y)
+        coef_df = baseline_model.extract_coefficients(baseline_model.selected_feature_names)
+        # Save the model pipeline and the coefficients
         baseline_model.save_pipeline(preprocessor, "results/model/my_own_model.pkl")
-        # Save coefficients for the audit report
         coef_df.to_csv("results/model/baseline_coefficients.csv", index=False)
-        logger.info(f"Top 5 strongest predictors of default risk:\n{coef_df.head(5)}")
+        
+        logger.info(f"Top 10 strongest predictors of default risk:\n{coef_df.head(10)}")
 
     except Exception as main_e:
         logger.critical(f"Pipeline execution failed: {main_e}")
