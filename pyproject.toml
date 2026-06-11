@@ -5,7 +5,7 @@ description = "Double-Tree Econometric ML model for credit scoring"
 authors = [
     {name = "mahdi kheirkha",email = "mahdikheirkhah060@gmail.com"}
 ]
-package-mode = false
+readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "pandas (>=3.0.3,<4.0.0)",
@@ -21,6 +21,9 @@ dependencies = [
     "seaborn (>=0.13.2,<0.14.0)",
     "category-encoders (>=2.9.0,<3.0.0)"
 ]
+
+[tool.poetry]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
