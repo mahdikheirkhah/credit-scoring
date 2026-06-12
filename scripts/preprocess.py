@@ -1,17 +1,23 @@
 import pandas as pd
+import re
 from loguru import logger
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from category_encoders import WOEEncoder
+
+# Inject the centralized configuration
+from config import CONFIG
+
 
 class BaselinePreprocessor:
     """Handles data loading, inspection, and preprocessing with zero data leakage."""
 
-    def __init__(self, random_state: int = 42) -> None:
+    def __init__(self, random_state: int = None) -> None:
         try:
-            self.random_state = random_state
+            # Fall back to config if no specific state is passed
+            self.random_state = random_state or CONFIG.preprocess.random_state
             self.preprocessor = None
             self.feature_names = None
             logger.info(f"Initialized BaselinePreprocessor with random_state={self.random_state}")
@@ -49,22 +55,39 @@ class BaselinePreprocessor:
             logger.error(f"Failed to extract feature types: {e}")
             raise
 
-    def build_pipeline(self, numeric_features: list[str], categorical_features: list[str]) -> None:
+    def build_pipeline(self, numeric_features: list[str], categorical_features: list[str], use_woe: bool = None) -> None:
+        """Builds the preprocessing pipeline with a switchable categorical encoder."""
         try:
+            # Determine ablation configuration dynamically
+            woe_flag = use_woe if use_woe is not None else CONFIG.preprocess.use_woe
+
             numeric_transformer = Pipeline(steps=[
-                ('imputer', SimpleImputer(strategy='median')),
+                ('imputer', SimpleImputer(strategy=CONFIG.preprocess.num_impute_strategy)),
                 ('scaler', StandardScaler())
             ])
+            
+            # --- THE SWITCH LOGIC ---
+            if woe_flag:
+                logger.info("Using WOEEncoder for categorical features.")
+                cat_encoder = WOEEncoder()
+            else:
+                logger.info("Using OneHotEncoder for categorical features (WoE disabled).")
+                cat_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+
             categorical_transformer = Pipeline(steps=[
-                ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-                ('woe', WOEEncoder())
+                ('imputer', SimpleImputer(
+                    strategy=CONFIG.preprocess.cat_impute_strategy, 
+                    fill_value=CONFIG.preprocess.cat_fill_value
+                )),
+                ('encoder', cat_encoder) 
             ])
+
             self.preprocessor = ColumnTransformer(
                 transformers=[
                     ('num', numeric_transformer, numeric_features),
                     ('cat', categorical_transformer, categorical_features)
                 ])
-            logger.info("Successfully built preprocessing pipeline with WoE Encoding.")
+            logger.info("Successfully built preprocessing pipeline.")
         except Exception as e:
             logger.error(f"Failed to build preprocessing pipeline: {e}")
             raise
@@ -73,7 +96,10 @@ class BaselinePreprocessor:
         try:
             logger.info("Fitting and transforming data...")
             X_processed = self.preprocessor.fit_transform(X, y)
-            self.feature_names = self.preprocessor.get_feature_names_out()
+            
+            raw_names = self.preprocessor.get_feature_names_out()
+            self.feature_names = [re.sub(r'[\[\]{},:" ]', '_', name) for name in raw_names]
+            
             logger.info(f"Successfully processed data. New shape: {X_processed.shape}")
             return pd.DataFrame(X_processed, columns=self.feature_names, index=X.index)
         except Exception as e:
@@ -81,18 +107,12 @@ class BaselinePreprocessor:
             raise
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """
-        Transforms new data using the already fitted pipeline.
-        Crucial for validation and test sets to prevent data leakage.
-        """
         try:
             logger.info("Transforming validation/test data...")
             if self.preprocessor is None or self.feature_names is None:
                 raise ValueError("The pipeline has not been fitted yet. Call fit_transform first.")
             
-            # Apply the memorized transformations (scaling, WoE, etc.) without re-fitting
             X_processed = self.preprocessor.transform(X)
-            
             logger.info(f"Successfully transformed data. Shape: {X_processed.shape}")
             return pd.DataFrame(X_processed, columns=self.feature_names, index=X.index)
         except Exception as e:
