@@ -70,12 +70,17 @@ def split_and_preprocess(df: pd.DataFrame, preprocessor: BaselinePreprocessor, u
     
     return X_train_processed, X_val_processed, y_train, y_val, train_client_ids
 
+def get_model_name():
+    """
+    Returns the name of the model based on the configuration.
+    """
+    return getattr(CONFIG.pipeline, 'model_type', 'lightgbm').lower()
 
 def get_model_from_config():
     """
     OOP Factory Pattern: Returns the correct model instance based on the configuration.
     """
-    model_type = getattr(CONFIG.pipeline, 'model_type', 'lightgbm').lower()
+    model_type = get_model_name()
     if model_type == 'logistic':
         return LogisticRegressionModel()
     elif model_type == 'lightgbm':
@@ -144,7 +149,8 @@ def run_training_pipeline(use_woe: bool = True, use_rfe: bool = False) -> None:
         run_interpretability_reports(model, X_train, train_ids)
         
         # 7. Save Artifacts
-        model.save_pipeline("results/model/my_own_model.pkl", preprocessor, selector)
+        model_name = get_model_name()
+        model.save_pipeline(f"results/model/{model_name}_model.pkl", preprocessor, selector)
         logger.info("=== TRAINING PIPELINE COMPLETE ===")
         
     except Exception as e:
@@ -157,7 +163,7 @@ def run_prediction_pipeline() -> None:
         logger.info("=== STARTING PREDICTION PIPELINE ===")
         
         # 1. Load the unified Predictor
-        predictor = CreditRiskPredictor("results/model/my_own_model.pkl")
+        predictor = CreditRiskPredictor(f"results/model/{get_model_name()}_model.pkl")
         
         # 2. Engineer Test Data exactly like Train Data
         preprocessor = BaselinePreprocessor()

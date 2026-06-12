@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [tool.poetry]
-package-mode = false
+packages = [{include = "scripts"}]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"

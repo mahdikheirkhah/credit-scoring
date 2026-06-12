@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from category_encoders import WOEEncoder
 
 # Inject the centralized configuration
-from config import CONFIG
+from scripts.config import CONFIG
 
 
 class BaselinePreprocessor:

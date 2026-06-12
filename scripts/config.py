@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 
 @dataclass
 class PreprocessConfig:
-    random_state: int = 42
     num_impute_strategy: str = 'median'
     cat_impute_strategy: str = 'constant'
     cat_fill_value: str = 'missing'
