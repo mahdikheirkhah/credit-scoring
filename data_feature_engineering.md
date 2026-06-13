@@ -143,6 +143,18 @@ Based on the exploratory data analysis of the credit bureau tables (1,716,428 re
 3. **Highly Asymmetric Distributions**: As expected in credit risk, the vast majority of clients have zero overdue days and zero bad debt, creating massive positive skew and kurtosis in default-related columns.
 
 
+---
+
+#### 3. `POS_CASH_balance.csv` Findings
+
+Unlike the external bureau data, this table represents Home Credit's internal ledger, leading to distinct data characteristics:
+
+1. **Negligible Missingness**: Because it is an internal system tracking monthly point-of-sale and cash loans, there is virtually no missing data.
+2. **Behavioral Outliers**: Columns like `SK_DPD` (Days Past Due) and `SK_DPD_DEF` (Days Past Due with Tolerance) contain extreme outliers (e.g., thousands of days past due). These are not system errors; they represent factual, severe loan abandonments.
+3. **Term-Length Restructuring (`CNT_INSTALMENT`)**: Sudden spikes or extreme values in the expected number of installments often indicate that a struggling client had their loan term extended (restructured) to lower monthly payments.
+
+---
+
 --- 
 
 ### data enginering
@@ -168,3 +180,26 @@ Our architecture elegantly handles these issues without requiring messy, manual 
    - We do *not* need to manually cap (Winsorize) these 115 million outliers. Because our preprocessing pipeline feeds all aggregated features through the `RobustScaler`, the scaler will use the Interquartile Range (25th to 75th percentile) to scale the data, completely ignoring the extreme values.
 3. **Handling Asymmetric Distributions**:
    - Credit data is inherently skewed. Our primary predictive engine, **LightGBM (Gradient Boosted Trees)**, is fundamentally invariant to monotonic transformations and handles non-normal, heavily skewed distributions natively by splitting on thresholds (e.g., `OVERDUE_MAX > 30`) rather than relying on variance equations. For our linear baselines (Logistic Regression), the `RobustScaler` provides sufficient stabilization.
+
+
+---
+
+#### 3. `bureau.csv` & `bureau_balance.csv` Behavioral Feature Extraction
+
+Beyond pipeline handling, we explicitly engineered domain-specific behavioral flags before passing the data to the preprocessor:
+
+1. **The Revolving Credit Signal**: We identified that `DAYS_CREDIT_ENDDATE` values exceeding 10,000 days (27+ years) are system placeholders for Open-Ended/Credit Card debt. We extracted this into a binary `IS_OPEN_ENDED_CREDIT` flag to preserve the signal, then replaced the extreme values with `NaN` to protect the mean duration calculations.
+2. **Recent Credit Hunger**: Engineered a `RECENT_LOAN_FLAG` identifying loans applied for in the last 180 days, capturing sudden desperation for liquidity.
+3. **Active Debt Burden**: Raw debt-to-credit ratios are skewed by closed loans (which have 0 debt). We isolated only `Active` loans to calculate a highly accurate `BUREAU_ACTIVE_DEBT_RATIO`.
+4. **Time-Series Flattening**: The 27 million `bureau_balance` rows were flattened by converting categorical statuses into mathematical severity flags (`STATUS_CLOSED`, `STATUS_SEVERE_DPD`), then aggregating them by loan ID before merging them into the main bureau table.
+
+
+--- 
+
+#### 4. `POS_CASH_balance.csv` Pipeline Solutions
+
+To capture the severe delinquencies without manually capping the true financial behavior:
+
+1. **Delinquency Thresholding**: Instead of feeding raw days-past-due into the model, we engineered boolean behavioral flags: `POS_IS_LATE` (`SK_DPD_DEF > 0`) and `POS_IS_SEVERE_LATE` (`SK_DPD_DEF > 30`).
+2. **Frequency Aggregation**: By aggregating these flags using `sum` and `mean` at the client level, we converted chaotic daily time-series data into measurable frequencies of financial distress (e.g., "This client was severely late for 14 total months").
+3. **Magnitude Preservation**: By passing the raw maximum values through our `RobustScaler`, we allowed the tree-based models to see the true severity of the worst defaults without destroying the linear model's variance.
