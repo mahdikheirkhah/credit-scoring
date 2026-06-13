@@ -13,9 +13,9 @@ class PreprocessConfig:
 @dataclass
 class LightGBMConfig:
     n_estimators: int = 1000
-    learning_rate: float = 0.083
+    learning_rate: float = 0.085
     max_depth: int = 3
-    subsample: float = 0.8
+    subsample: float = 0.7
     colsample_bytree: float = 0.8
     class_weight: str = 'balanced'
     n_jobs: int = -1

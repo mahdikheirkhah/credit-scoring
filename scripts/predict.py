@@ -18,35 +18,30 @@ class CreditRiskPredictor:
                 
             pipeline_data = joblib.load(pipeline_path)
             
-            # Reconstruct the pipeline state
-            self.preprocessor = pipeline_data['preprocessor']
-            self.feature_names = pipeline_data['feature_names']
+            # ---> THE FIX: Inject the whole stateful object <---
+            self.preprocessor_obj = pipeline_data['preprocessor_obj'] 
+            
             self.selector = pipeline_data.get('selector')
             self.selected_feature_names = pipeline_data.get('selected_feature_names')
             self.model = pipeline_data['model']
             
-            logger.info("Successfully loaded preprocessor, selector, and model.")
+            logger.info("Successfully loaded preprocessor object, selector, and model.")
         except Exception as e:
             logger.error(f"Failed to initialize predictor: {e}")
             raise
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
-        """
-        Core inference logic. Can be used for a single customer (API) or millions (Batch).
-        
-        Args:
-            X (pd.DataFrame): Raw feature data (must NOT contain the target or ID columns).
-            
-        Returns:
-            np.ndarray: Array of default probabilities.
-        """
         try:
-            logger.info("Applying preprocessor transformations...")
-            # 1. Transform categorical/numerical features
-            X_processed = self.preprocessor.transform(X)
-            X_df = pd.DataFrame(X_processed, columns=self.feature_names)
+            logger.info("Applying dynamic feature filters...")
+            # 1. Use the injected object's memory to drop the exact same columns!
+            X_filtered = self.preprocessor_obj.filter_features(X, fit=False)
             
-            # 2. Apply feature selection if the pipeline was trained with RFE
+            logger.info("Applying preprocessor transformations...")
+            # 2. Transform using the injected object
+            X_processed = self.preprocessor_obj.transform(X_filtered)
+            X_df = pd.DataFrame(X_processed, columns=self.preprocessor_obj.feature_names)
+            
+            # 3. Apply RFE if it exists
             if self.selector is not None and self.selected_feature_names is not None:
                 logger.info("Applying RFE feature selection filter...")
                 X_filtered_np = self.selector.transform(X_df)
@@ -54,7 +49,6 @@ class CreditRiskPredictor:
             else:
                 X_final = X_df
             
-            # 3. Generate probabilities
             logger.info("Generating default probabilities...")
             probabilities = self.model.predict_proba(X_final)[:, 1]
             return probabilities
@@ -64,20 +58,14 @@ class CreditRiskPredictor:
             raise
 
     def generate_kaggle_submission(self, df_test: pd.DataFrame, id_col: str, output_csv_path: str) -> None:
-        """
-        Specific utility for Kaggle batch submissions.
-        """
         try:
             logger.info("Preparing test data for Kaggle submission...")
             
-            # Isolate IDs and Features
             client_ids = df_test[id_col]
             X_test = df_test.drop(columns=[id_col])
             
-            # Utilize the core predict method
             probabilities = self.predict(X_test)
             
-            # Format and Save
             submission_df = pd.DataFrame({
                 id_col: client_ids,
                 'TARGET': probabilities

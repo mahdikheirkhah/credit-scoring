@@ -2,7 +2,7 @@ import pandas as pd
 from loguru import logger
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LogisticRegression
-from config import CONFIG
+from scripts.config import CONFIG
 
 class RFEFeatureSelector:
     """Handles mathematically robust feature reduction."""

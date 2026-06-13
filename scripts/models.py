@@ -11,8 +11,8 @@ from sklearn.metrics import roc_auc_score
 import lightgbm as lgb
 import shap
 
-from config import CONFIG
-from preprocess import BaselinePreprocessor
+from scripts.config import CONFIG
+from scripts.preprocess import BaselinePreprocessor
 
 # ---------------------------------------------------------
 # 1. THE INTERFACE (Abstract Base Class)
@@ -37,7 +37,7 @@ class BaseCreditModel(ABC):
             raise ValueError("Model has not been trained yet.")
         return self.model.predict_proba(X)[:, 1]
 
-    def save_pipeline(self, filepath: str, preprocessor_obj: BaselinePreprocessor, selector_obj=None) -> None:
+def save_pipeline(self, filepath: str, preprocessor_obj: BaselinePreprocessor, selector_obj=None) -> None:
         """
         DRY Implementation: Handles saving the model and its dependencies.
         """
@@ -46,8 +46,9 @@ class BaseCreditModel(ABC):
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             
             pipeline_data = {
-                'preprocessor': preprocessor_obj.preprocessor,
-                'feature_names': preprocessor_obj.feature_names,
+                # ---> THE FIX: Save the entire custom wrapper object <---
+                'preprocessor_obj': preprocessor_obj, 
+                
                 'selector': getattr(selector_obj, 'selector', None) if selector_obj else None,
                 'selected_feature_names': getattr(selector_obj, 'selected_feature_names', None) if selector_obj else None,
                 'model': self.model
@@ -57,7 +58,6 @@ class BaseCreditModel(ABC):
         except Exception as e:
             logger.error(f"Failed to save pipeline: {e}")
             raise
-
 
 # ---------------------------------------------------------
 # 2. THE COMPLIANT MODEL (Logistic Regression)

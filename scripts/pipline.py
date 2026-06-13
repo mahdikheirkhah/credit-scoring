@@ -4,12 +4,12 @@ from loguru import logger
 from sklearn.model_selection import train_test_split
 
 # Import our SOLID modules
-from feature_engineering import BureauAggregator, PreviousApplicationAggregator, FeatureMerger
-from preprocess import BaselinePreprocessor
-from feature_selection import RFEFeatureSelector
-from models import LogisticRegressionModel, GradientBoostingModel
-from predict import CreditRiskPredictor
-from config import CONFIG
+from scripts.feature_engineering import BureauAggregator, PreviousApplicationAggregator, FeatureMerger
+from scripts.preprocess import BaselinePreprocessor
+from scripts.feature_selection import RFEFeatureSelector
+from scripts.models import LogisticRegressionModel, GradientBoostingModel
+from scripts.predict import CreditRiskPredictor
+from scripts.config import CONFIG
 
 
 # ==============================================================================
@@ -37,29 +37,24 @@ def load_and_engineer_features(preprocessor: BaselinePreprocessor) -> pd.DataFra
     df_merged = FeatureMerger.merge(df, [bureau_proxies, prev_proxies])
     return df_merged
 
-
+# UPDATE THIS FUNCTION in pipeline.py
 def split_and_preprocess(df: pd.DataFrame, preprocessor: BaselinePreprocessor, use_woe: bool):
-    """
-    CONTRIBUTING.md Alignment: Class Imbalance Awareness & Reproducibility.
-    Uses 'stratify=y' to preserve the rare default ratio. Applies strict fit/transform 
-    boundaries to prevent validation leakage. Sets random_state for reproducibility.
-    """
     y = df['TARGET']
     X = df.drop(columns=['TARGET']) 
 
     logger.info("Splitting data with strict stratification...")
     X_train_raw, X_val_raw, y_train, y_val = train_test_split(
-        X, 
-        y, 
-        test_size=CONFIG.pipeline.test_size, 
-        random_state=CONFIG.pipeline.random_state, 
-        stratify=y
+        X, y, test_size=CONFIG.pipeline.test_size, 
+        random_state=CONFIG.pipeline.random_state, stratify=y
     )
     
-    # Isolate IDs for interpretability reports
     train_client_ids = X_train_raw['SK_ID_CURR']
     X_train_raw = X_train_raw.drop(columns=['SK_ID_CURR'])
     X_val_raw = X_val_raw.drop(columns=['SK_ID_CURR'])
+
+    # ---> NEW: DYNAMIC STATEFUL FILTERING <---
+    X_train_raw = preprocessor.filter_features(X_train_raw, fit=True)  # Learns and Drops
+    X_val_raw = preprocessor.filter_features(X_val_raw, fit=False)     # Only Drops
 
     logger.info("Building and applying Preprocessing Pipeline...")
     numeric_cols, categorical_cols = preprocessor.get_feature_types(X_train_raw)
