@@ -123,8 +123,48 @@ This structured view allows us to build a comprehensive feature set that capture
 
 ### data EDA
 
+#### 1. `application_train.csv` Findings
+Based on the initial exploratory data analysis of the main table (307,511 rows, 122 columns), we identified several critical issues:
+
+1. **Extreme Outliers**: `AMT_INCOME_TOTAL` contains a massive outlier with a maximum value of 117,000,000 (117 Million), whereas the 75th percentile is only 202,500. This causes massive skew (391.56) and kurtosis (191,786.55), which would destroy mean/variance-based scalers like `StandardScaler`.
+2. **Domain Anomalies**: `DAYS_EMPLOYED` has a maximum value of 365,243 (exactly 1000 years). This is a known systemic error code used when employment data is unavailable.
+3. **High Missingness**: 67 columns contain missing values. In particular, building-related features (e.g., `COMMONAREA_MEDI`, `NONLIVINGAPARTMENTS_MODE`) are missing for nearly 70% of applicants.
+4. **Redundant Information**: Building metrics are duplicated across three different aggregations (`_AVG`, `_MODE`, `_MEDI`), leading to high multicollinearity.
+5. **Zero-Variance Features**: Some flags, such as `FLAG_MOBIL`, have only one unique value (1) across the entire dataset, providing zero predictive power.
+
+---
+
+
+#### 2. `bureau.csv` & `bureau_balance.csv` Findings
+Based on the exploratory data analysis of the credit bureau tables (1,716,428 records), we identified several key characteristics common to financial history data:
+
+1. **Extreme Missingness in Specific Fields**: Features like `AMT_ANNUITY` (71.47% missing) and `AMT_CREDIT_MAX_OVERDUE` (65.51% missing) are heavily unpopulated. Other fields like `DAYS_ENDDATE_FACT` (36.9%) and `AMT_CREDIT_SUM_LIMIT` (34.4%) also have significant gaps.
+2. **Massive Outliers**: Fields such as `AMT_CREDIT_MAX_OVERDUE` contain extreme outliers (maximum value of 115,987,200), and `CREDIT_DAY_OVERDUE` has values up to 2,792 days.
+3. **Highly Asymmetric Distributions**: As expected in credit risk, the vast majority of clients have zero overdue days and zero bad debt, creating massive positive skew and kurtosis in default-related columns.
 
 
 --- 
 
 ### data enginering
+
+#### 1. `application_train.csv` Pipeline Solutions
+To resolve the EDA findings while strictly adhering to `Contributing.md` rules (especially zero data leakage), the following preprocessing architecture was implemented in `scripts/preprocess.py`:
+
+1. **Robust Scaling (`RobustScaler`)**: To handle the $117M extreme income outlier without manually manipulating the raw data, we swapped `StandardScaler` for `RobustScaler`. It relies on the Median and Interquartile Range (IQR), natively ignoring massive outliers and protecting the model.
+2. **The Missingness Signal (`add_indicator=True`)**: Because 70% of building data is missing, the *absence* of data is highly predictive (e.g., clients who don't provide building data might be higher risk). We used Scikit-Learn's `SimpleImputer(add_indicator=True)` to impute missing values with the median while natively generating a binary `_MISSING` flag to preserve the signal.
+3. **Static Domain Fixes**: Hardcoded a replacement of the 365,243 `DAYS_EMPLOYED` anomaly with `NaN` inside the `load_data` method, routing it to our intelligent imputer.
+4. **Stateful Feature Filtering**: Created a custom `filter_features(X, fit=bool)` method to drop highly correlated redundant columns (`_AVG`, `_MODE`) and zero-variance columns (`FLAG_MOBIL`). Crucially, this method *memorizes* the dropped columns during training (`fit=True`) and perfectly applies the same drops to the test set (`fit=False`), completely preventing pipeline schema mismatches and data leakage.
+
+---
+
+#### 2. `bureau.csv` Pipeline Solutions
+Our architecture elegantly handles these issues without requiring messy, manual pandas code:
+
+1. **Handling Missing Values during Aggregation**: 
+   - When we aggregate the bureau records down to the client level in `scripts/feature_engineering.py` using functions like `.groupby().agg(['mean', 'max', 'sum'])`, pandas **natively ignores NaNs**. 
+   - If a client has 5 historical loans but only 1 contains `AMT_ANNUITY` data, the mean is safely calculated from that 1 value.
+   - If all historical records are NaN, the resulting aggregated feature will also be `NaN`. These remaining NaNs are passed seamlessly into our main `BaselinePreprocessor`, where `SimpleImputer(add_indicator=True)` takes over. It fills the `NaN` with the median, but creates a binary `_MISSING` flag. This preserves the "missingness signal" (i.e., the fact that the credit bureau has no data on their past annuity is itself a highly predictive risk feature).
+2. **Handling Massive Outliers**:
+   - We do *not* need to manually cap (Winsorize) these 115 million outliers. Because our preprocessing pipeline feeds all aggregated features through the `RobustScaler`, the scaler will use the Interquartile Range (25th to 75th percentile) to scale the data, completely ignoring the extreme values.
+3. **Handling Asymmetric Distributions**:
+   - Credit data is inherently skewed. Our primary predictive engine, **LightGBM (Gradient Boosted Trees)**, is fundamentally invariant to monotonic transformations and handles non-normal, heavily skewed distributions natively by splitting on thresholds (e.g., `OVERDUE_MAX > 30`) rather than relying on variance equations. For our linear baselines (Logistic Regression), the `RobustScaler` provides sufficient stabilization.

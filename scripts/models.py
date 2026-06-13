@@ -37,9 +37,17 @@ class BaseCreditModel(ABC):
             raise ValueError("Model has not been trained yet.")
         return self.model.predict_proba(X)[:, 1]
 
-def save_pipeline(self, filepath: str, preprocessor_obj: BaselinePreprocessor, selector_obj=None) -> None:
+    def save_pipeline(self, filepath: str, preprocessor_obj: BaselinePreprocessor, selector_obj=None) -> None:
         """
         DRY Implementation: Handles saving the model and its dependencies.
+        
+        Args:
+            filepath (str): The destination path for the saved pipeline pickle file.
+            preprocessor_obj (BaselinePreprocessor): The stateful preprocessor object to save.
+            selector_obj (Optional): The feature selector object used, if any.
+            
+        Returns:
+            None
         """
         try:
             logger.info(f"Saving inference pipeline to {filepath}...")
