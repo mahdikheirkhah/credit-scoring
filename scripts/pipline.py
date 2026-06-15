@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from loguru import logger
 from sklearn.model_selection import train_test_split
-
+from sklearn.metrics import roc_auc_score
 # Import our SOLID modules
 from scripts.feature_engineering import (
     BureauAggregator,
@@ -222,7 +222,6 @@ def run_model_comparison():
     architectures = ["logistic", "piecewise", "lightgbm"]
     results = {}
     
-    from sklearn.metrics import roc_auc_score
     
     for arch in architectures:
         model = get_model_from_config(override_type=arch)
@@ -238,10 +237,10 @@ def run_model_comparison():
 if __name__ == "__main__":
     try:
         logger.info("Pipeline Orchestrator Initialized.")
-
+        run_model_comparison()
         # Ablation Configuration
-        run_training_pipeline(use_woe=CONFIG.preprocess.use_woe, use_rfe=CONFIG.pipeline.use_rfe)
-        run_prediction_pipeline()
+        #run_training_pipeline(use_woe=CONFIG.preprocess.use_woe, use_rfe=CONFIG.pipeline.use_rfe)
+        #run_prediction_pipeline()
 
     except Exception as main_e:
         logger.critical(f"System execution halted due to error: {main_e}")
