@@ -7,21 +7,23 @@ class PreprocessConfig:
     cat_impute_strategy: str = "constant"
     cat_fill_value: str = "missing"
     # Default switch for our Ablation studies
-    use_woe: bool = True
+    use_woe: bool = False
     random_state: int = 42
 
 
 @dataclass
 class LightGBMConfig:
     n_estimators: int = 1000
-    learning_rate: float = 0.085
+    learning_rate: float = 0.083
     max_depth: int = 3
-    subsample: float = 0.7
+    subsample: float = 0.6
     colsample_bytree: float = 0.8
     class_weight: str = "balanced"
+    # class_weight: dict = field(default_factory=lambda: {0: 2.0, 1: 12.0})
     n_jobs: int = -1
     verbose: int = -1
     random_state: int = 42
+    early_stopping_rounds: int = 50
 
 
 @dataclass
@@ -29,8 +31,9 @@ class LogisticRegressionConfig:
     class_weight: str = "balanced"
     max_iter: int = 1000
     rfe_c_value: float = 0.1
-    rfe_n_features: int = 60
+    rfe_n_features: int = 250
     rfe_step: float = 0.1
+    rfe_max_iter: int = 20000
     random_state: int = 42
 
 
@@ -38,9 +41,10 @@ class LogisticRegressionConfig:
 class PipelineConfig:
     model_type: str = "lightgbm"
     random_state: int = 42
-    test_size: float = 0.2
-    n_cv_splits: int = 5
+    test_size: float = 0.15
+    n_cv_splits: int = 8
     shap_sample_size: int = 5000
+    use_rfe: bool = False
 
 
 @dataclass

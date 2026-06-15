@@ -114,7 +114,42 @@ class BureauAggregator(FeatureAggregator):
             logger.error(f"Failed to aggregate bureau data: {e}")
             raise
 
+class BureauBalanceAggregator:
+    """Handles the 1:N:M relationship for the Bureau Balance time-series data."""
+    
+    @staticmethod
+    def aggregate(bureau_balance_df: pd.DataFrame) -> pd.DataFrame:
+        try:
+            logger.info("Aggregating bureau_balance.csv (Time-Series Statuses)...")
+            bb_df = bureau_balance_df.copy()
+            
+            # --- FEATURE ENGINEERING: Time-Series Status Flags ---
+            bb_df['STATUS_CLOSED'] = (bb_df['STATUS'] == 'C').astype(int)
+            bb_df['STATUS_UNKNOWN'] = (bb_df['STATUS'] == 'X').astype(int)
+            bb_df['STATUS_SEVERE_DPD'] = bb_df['STATUS'].isin(['2', '3', '4', '5']).astype(int)
+            bb_df['STATUS_NUMERIC'] = bb_df['STATUS'].replace({'C': 0, 'X': 0}).astype(int)
 
+            # --- AGGREGATION LEVEL 1: By SK_ID_BUREAU ---
+            bb_aggregations = {
+                'MONTHS_BALANCE': ['min', 'max', 'size'], 
+                'STATUS_CLOSED': ['sum'],
+                'STATUS_UNKNOWN': ['mean'], 
+                'STATUS_SEVERE_DPD': ['sum', 'max'], 
+                'STATUS_NUMERIC': ['max', 'mean'] 
+            }
+            
+            bb_agg = bb_df.groupby('SK_ID_BUREAU').agg(bb_aggregations)
+            
+            # Using BUREAU_BAL_ prefix ensures BureauAggregator processes it correctly
+            bb_agg.columns = pd.Index([f"BUREAU_BAL_{e[0]}_{e[1].upper()}" for e in bb_agg.columns.tolist()])
+            
+            logger.info(f"Successfully engineered Bureau Balance proxies. Shape: {bb_agg.shape}")
+            return bb_agg.reset_index()
+            
+        except Exception as e:
+            logger.error(f"Failed to aggregate bureau balance data: {e}")
+            raise
+        
 class PreviousApplicationAggregator(FeatureAggregator):
     """Handles specific business logic for internal previous applications."""
 

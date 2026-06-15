@@ -20,27 +20,52 @@ from scripts.config import CONFIG
 # ==============================================================================
 
 
-def load_and_engineer_features(preprocessor: BaselinePreprocessor) -> pd.DataFrame:
-    """
-    CONTRIBUTING.md Alignment: Data Integrity & Leakage Prevention.
-    Aggregates historical data carefully before joining to the main spine to
-    prevent target duplication (leakage).
-    """
-    logger.info("Loading training and historical datasets...")
-    df = preprocessor.load_data("data/application_train.csv")
+def load_and_engineer_features(preprocessor: BaselinePreprocessor, dataset_type: str = "train") -> pd.DataFrame:
+    """Loads all 7 tables, applies Two-Step Aggregation, and merges onto the correct spine (train or test)."""
+    
+    logger.info(f"Loading {dataset_type} and historical datasets...")
+    
+    # Dynamically select the spine based on the pipeline phase
+    spine_file = "data/application_train.csv" if dataset_type == "train" else "data/application_test.csv"
+    df = preprocessor.load_data(spine_file)
+    
     bureau_df = preprocessor.load_data("data/bureau.csv")
+    bureau_bal_df = preprocessor.load_data("data/bureau_balance.csv")
     prev_app_df = preprocessor.load_data("data/previous_application.csv")
-
+    pos_cash_df = preprocessor.load_data("data/POS_CASH_balance.csv")
+    credit_card_df = preprocessor.load_data("data/credit_card_balance.csv")
+    installments_df = preprocessor.load_data("data/installments_payments.csv")
+    
     logger.info("Engineering relational proxies via interfaces...")
-    bureau_aggregator = BureauAggregator()
-    prev_app_aggregator = PreviousApplicationAggregator()
-
-    bureau_proxies = bureau_aggregator.aggregate(bureau_df)
-    prev_proxies = prev_app_aggregator.aggregate(prev_app_df)
-
-    df_merged = FeatureMerger.merge(df, [bureau_proxies, prev_proxies])
+    
+    from scripts.feature_engineering import (
+        BureauBalanceAggregator, BureauAggregator,
+        PreviousApplicationAggregator, POSCashAggregator,
+        CreditCardAggregator, InstallmentsAggregator, FeatureMerger
+    )
+    
+    # 1. External Bureau (1:N:M -> Merge -> Aggregate)
+    bb_proxies = BureauBalanceAggregator.aggregate(bureau_bal_df)
+    bureau_enriched = bureau_df.merge(bb_proxies, on='SK_ID_BUREAU', how='left')
+    bureau_proxies = BureauAggregator().aggregate(bureau_enriched)
+    
+    # 2. Internal Previous Applications (1:N)
+    prev_proxies = PreviousApplicationAggregator().aggregate(prev_app_df)
+    
+    # 3. Internal POS Cash (1:N)
+    pos_proxies = POSCashAggregator().aggregate(pos_cash_df)
+    
+    # 4. Internal Credit Cards (1:N:M -> Two-Step Aggregation)
+    cc_proxies = CreditCardAggregator().aggregate(credit_card_df)
+    
+    # 5. Internal Installments (1:N:M -> Two-Step Aggregation)
+    inst_proxies = InstallmentsAggregator().aggregate(installments_df)
+    
+    # Merge all historical features onto the main spine
+    feature_dfs = [bureau_proxies, prev_proxies, pos_proxies, cc_proxies, inst_proxies]
+    df_merged = FeatureMerger.merge(df, feature_dfs)
+    
     return df_merged
-
 
 # UPDATE THIS FUNCTION in pipeline.py
 def split_and_preprocess(
@@ -127,51 +152,35 @@ def run_interpretability_reports(model, X_train: pd.DataFrame, client_ids: pd.Se
 # ORCHESTRATION (The Maestro)
 # ==============================================================================
 
-
 def run_training_pipeline(use_woe: bool = True, use_rfe: bool = False) -> None:
     try:
         model_name = getattr(CONFIG.pipeline, "model_type", "unknown").upper()
-        logger.info(
-            f"=== STARTING TRAINING PIPELINE | Model: {model_name} | WoE: {use_woe} | RFE: {use_rfe} ==="
-        )
+        logger.info(f"=== STARTING TRAINING PIPELINE | Model: {model_name} | WoE: {use_woe} | RFE: {use_rfe} ===")
 
-        # 1. Initialize Tools
         preprocessor = BaselinePreprocessor()
         model = get_model_from_config()
 
-        # 2. Load & Engineer
-        df_merged = load_and_engineer_features(preprocessor)
+        # Generate features for the TRAIN spine
+        df_merged = load_and_engineer_features(preprocessor, dataset_type="train")
 
-        # 3. Split & Preprocess
-        X_train, X_val, y_train, y_val, train_ids = split_and_preprocess(
-            df_merged, preprocessor, use_woe
-        )
+        X_train, X_val, y_train, y_val, train_ids = split_and_preprocess(df_merged, preprocessor, use_woe)
 
-        # 4. Feature Selection (Ablation Switch)
         selector = None
         if use_rfe:
             logger.info("Applying RFE Filter via external selector...")
             rfe_engine = RFEFeatureSelector()
             X_train = rfe_engine.select(X_train, y_train)
 
-            # Apply identical filter to validation
             X_val_np = rfe_engine.selector.transform(X_val)
             X_val = pd.DataFrame(X_val_np, columns=rfe_engine.selected_feature_names)
             selector = rfe_engine
         else:
             logger.info("Skipping RFE Filter. Using all features.")
 
-        # 5. Train Model (Polymorphic call)
         model.train(X_train, y_train, X_val, y_val)
-
-        # 6. Generate Regulatory Reports
         run_interpretability_reports(model, X_train, train_ids)
-
-        # 7. Save Artifacts
-        model_name = get_model_name()
-        model.save_pipeline(
-            f"results/model/{model_name}_model.pkl", preprocessor, selector
-        )
+        
+        model.save_pipeline(f"results/model/{get_model_name()}_model.pkl", preprocessor, selector)
         logger.info("=== TRAINING PIPELINE COMPLETE ===")
 
     except Exception as e:
@@ -183,20 +192,12 @@ def run_prediction_pipeline() -> None:
     try:
         logger.info("=== STARTING PREDICTION PIPELINE ===")
 
-        # 1. Load the unified Predictor
         predictor = CreditRiskPredictor(f"results/model/{get_model_name()}_model.pkl")
-
-        # 2. Engineer Test Data exactly like Train Data
         preprocessor = BaselinePreprocessor()
-        df_test = preprocessor.load_data("data/application_test.csv")
-        bureau_df = preprocessor.load_data("data/bureau.csv")
-        prev_app_df = preprocessor.load_data("data/previous_application.csv")
 
-        bureau_proxies = BureauAggregator().aggregate(bureau_df)
-        prev_proxies = PreviousApplicationAggregator().aggregate(prev_app_df)
-        df_test_merged = FeatureMerger.merge(df_test, [bureau_proxies, prev_proxies])
+        # Generate exact same features, but for tßhe TEST spine!
+        df_test_merged = load_and_engineer_features(preprocessor, dataset_type="test")
 
-        # 3. Generate Submission
         predictor.generate_kaggle_submission(
             df_test=df_test_merged,
             id_col="SK_ID_CURR",
@@ -208,13 +209,12 @@ def run_prediction_pipeline() -> None:
         logger.critical(f"Prediction pipeline failed: {e}")
         raise
 
-
 if __name__ == "__main__":
     try:
         logger.info("Pipeline Orchestrator Initialized.")
 
         # Ablation Configuration
-        run_training_pipeline(use_woe=False, use_rfe=False)
+        run_training_pipeline(use_woe=CONFIG.preprocess.use_woe, use_rfe=CONFIG.pipeline.use_rfe)
         run_prediction_pipeline()
 
     except Exception as main_e:

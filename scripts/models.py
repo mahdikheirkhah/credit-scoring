@@ -157,7 +157,7 @@ class GradientBoostingModel(BaseCreditModel):
             y_train,
             eval_set=[(X_train, y_train), (X_val, y_val)],
             eval_metric="auc",
-            callbacks=[lgb.early_stopping(stopping_rounds=50), lgb.log_evaluation(50)],
+            callbacks=[lgb.early_stopping(stopping_rounds=CONFIG.lgb.early_stopping_rounds), lgb.log_evaluation(CONFIG.lgb.early_stopping_rounds)],
         )
 
         # Generate Learning Curves automatically
