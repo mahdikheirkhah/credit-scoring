@@ -13,6 +13,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.ipynb_checkpoints
 
 # OS Generated Files
 .DS_Store
@@ -29,3 +30,7 @@ data/*.json
 
 # Secrets and Environment Variables
 .env
+
+#graphify
+graphify-out/
+.agents/
