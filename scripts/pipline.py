@@ -237,10 +237,10 @@ def run_model_comparison():
 if __name__ == "__main__":
     try:
         logger.info("Pipeline Orchestrator Initialized.")
-        run_model_comparison()
+        #run_model_comparison()
         # Ablation Configuration
-        #run_training_pipeline(use_woe=CONFIG.preprocess.use_woe, use_rfe=CONFIG.pipeline.use_rfe)
-        #run_prediction_pipeline()
+        run_training_pipeline(use_woe=CONFIG.preprocess.use_woe, use_rfe=CONFIG.pipeline.use_rfe)
+        run_prediction_pipeline()
 
     except Exception as main_e:
         logger.critical(f"System execution halted due to error: {main_e}")

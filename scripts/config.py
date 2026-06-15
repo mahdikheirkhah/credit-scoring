@@ -52,10 +52,10 @@ class PiecewiseConfig:
 
 @dataclass
 class PipelineConfig:
-    model_type: str = "piecewise"
+    model_type: str = "logistic"
     random_state: int = 42
     test_size: float = 0.15
-    n_cv_splits: int = 8
+    n_cv_splits: int = 5
     shap_sample_size: int = 10000
     use_rfe: bool = False
 
