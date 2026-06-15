@@ -4,12 +4,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from abc import ABC, abstractmethod
 from loguru import logger
-
+import numpy as np
 # Specific ML Libraries
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 import lightgbm as lgb
 import shap
+from sklearn.tree import DecisionTreeClassifier
 
 from scripts.config import CONFIG
 from scripts.preprocess import BaselinePreprocessor
@@ -139,6 +140,7 @@ class GradientBoostingModel(BaseCreditModel):
             random_state=self.random_state,
             n_jobs=CONFIG.lgb.n_jobs,
             verbose=CONFIG.lgb.verbose,
+            linear_tree=CONFIG.lgb.linear_tree
         )
         logger.info("Initialized GradientBoostingModel (LightGBM).")
 
@@ -216,3 +218,152 @@ class GradientBoostingModel(BaseCreditModel):
         except Exception as e:
             logger.error(f"Failed to generate local SHAP: {e}")
             raise
+
+
+class PiecewiseLinearModel(BaseCreditModel):
+    """
+    Econometric Model Tree: Uses a Decision Tree to segment borrowers, 
+    then applies a distinct Logistic Regression model to each segment (leaf).
+    """
+
+    def __init__(self, random_state: int = CONFIG.pipeline.random_state):
+        super().__init__(random_state)
+        
+        # 1. The Global Segmenter
+        self.tree = DecisionTreeClassifier(
+            max_depth=CONFIG.piecewise.max_depth,
+            min_samples_leaf=CONFIG.piecewise.min_samples_leaf,
+            class_weight=CONFIG.piecewise.tree_class_weight,
+            random_state=self.random_state
+        )
+        
+        # 2. Dictionary to hold the local LR models
+        self.leaf_models = {}
+        
+        # 3. Global Fallback (Used if a leaf is too pure/small to fit an LR)
+        self.global_fallback = None
+
+    def train(self, X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFrame = None, y_val: pd.Series = None) -> None:
+        logger.info(f"Training Piecewise Linear Model (Max Depth: {CONFIG.piecewise.max_depth})...")
+        
+        # Train Global Fallback
+        self.global_fallback = LogisticRegression(
+            class_weight=CONFIG.piecewise.lr_class_weight, 
+            solver='liblinear',
+            random_state=self.random_state
+        )
+        self.global_fallback.fit(X_train, y_train)
+
+        # 1. Train the Decision Tree to partition the space
+        self.tree.fit(X_train, y_train)
+        
+        # 2. Route every training sample to its assigned Leaf ID
+        leaf_indices = self.tree.apply(X_train)
+        unique_leaves = np.unique(leaf_indices)
+        
+        logger.info(f"Tree created {len(unique_leaves)} distinct borrower segments.")
+
+        # 3. Train a separate LR for each leaf
+        for leaf in unique_leaves:
+            # Subset the data falling into this specific leaf
+            mask = (leaf_indices == leaf)
+            X_leaf, y_leaf = X_train[mask], y_train[mask]
+            
+            # EDGE CASE: If the leaf has only 1 class (e.g., 0 defaults), LR will fail.
+            if len(np.unique(y_leaf)) < 2:
+                logger.warning(f"Leaf {leaf} contains only 1 class. Assigning global fallback model.")
+                self.leaf_models[leaf] = self.global_fallback
+                continue
+                
+            # Fit local econometric model
+            lr = LogisticRegression(
+                class_weight=CONFIG.piecewise.lr_class_weight,
+                C=CONFIG.piecewise.lr_c_value,
+                solver="liblinear",
+                max_iter=CONFIG.piecewise.lr_max_iter,
+                random_state=self.random_state
+            )
+            lr.fit(X_leaf, y_leaf)
+            self.leaf_models[leaf] = lr
+            
+        logger.info("Successfully trained all local econometric models.")
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        """Routes unseen data through the tree, then applies the specific leaf's LR model."""
+        if not self.leaf_models:
+            raise ValueError("Model has not been trained yet.")
+            
+        # Route new clients to their leaves
+        leaf_indices = self.tree.apply(X)
+        probabilities = np.zeros(len(X))
+        
+        # Apply the specific LR equation for each leaf segment
+        for leaf in np.unique(leaf_indices):
+            mask = (leaf_indices == leaf)
+            
+            # If we see a leaf in inference that we didn't train on (rare but possible), use fallback
+            model = self.leaf_models.get(leaf, self.global_fallback)
+            
+            probabilities[mask] = model.predict_proba(X[mask])[:, 1]
+            
+        return probabilities
+        
+    def extract_leaf_coefficients(self, feature_names: list) -> dict:
+        """Returns the specific regression equations for regulatory audits."""
+        audit_dict = {}
+        for leaf, model in self.leaf_models.items():
+            if model != self.global_fallback:
+                coef_df = pd.DataFrame({
+                    'Feature': feature_names,
+                    'Coefficient': model.coef_[0]
+                }).sort_values(by='Coefficient', key=abs, ascending=False)
+                audit_dict[leaf] = coef_df
+        return audit_dict
+
+    # UPDATE IN scripts/models.py inside the PiecewiseLinearModel class
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        """Routes unseen data through the tree, then applies the specific leaf's LR model."""
+        if not self.leaf_models:
+            raise ValueError("Model has not been trained yet.")
+            
+        leaf_indices = self.tree.apply(X)
+        
+        # ---> API FIX: Create a 2D array to mimic Scikit-Learn exactly <---
+        # Shape: (number of samples, 2 classes)
+        probabilities = np.zeros((len(X), 2))
+        
+        for leaf in np.unique(leaf_indices):
+            mask = (leaf_indices == leaf)
+            model = self.leaf_models.get(leaf, self.global_fallback)
+            
+            # Predict returns a 2D array of [Prob_Good, Prob_Default]. We store the whole thing.
+            probabilities[mask] = model.predict_proba(X[mask])
+            
+        return probabilities
+
+    def save_pipeline(self, filepath: str, preprocessor_obj, selector_obj=None) -> None:
+        """
+        ---> OOP FIX: Overrides the BaseCreditModel save method <---
+        Saves the ENTIRE wrapper object (self) because our logic is split 
+        across self.tree and self.leaf_models, rather than a single self.model.
+        """
+        import joblib
+        import os
+        
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        # Safely handle the selected features if RFE was used
+        selected_features = None
+        if selector_obj is not None and hasattr(selector_obj, 'selected_feature_names'):
+            selected_features = selector_obj.selected_feature_names
+            
+        pipeline_data = {
+            "preprocessor_obj": preprocessor_obj,
+            "selector": selector_obj,
+            "selected_feature_names": selected_features,
+            "model": self  # Save the entire Piecewise class instance!
+        }
+        
+        joblib.dump(pipeline_data, filepath)
+        logger.info(f"Successfully saved Piecewise pipeline to {filepath}")

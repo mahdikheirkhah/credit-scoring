@@ -29,23 +29,35 @@ class LightGBMConfig:
 @dataclass
 class LogisticRegressionConfig:
     class_weight: str = "balanced"
-    max_iter: int = 1000
+    max_iter: int = 1500
     rfe_c_value: float = 0.1
     rfe_n_features: int = 250
     rfe_step: float = 0.1
     rfe_max_iter: int = 20000
     random_state: int = 42
+    linear_tree: bool = True
 
+@dataclass
+class PiecewiseConfig:
+    # Tree Parameters
+    max_depth: int = 3  # Creates up to 8 distinct "Borrower Personas"
+    min_samples_leaf: int = 100000  # Ensures enough data in each leaf for stable LR
+    tree_class_weight: str = "balanced"
+    
+    # Logistic Regression Parameters
+    lr_c_value: float = 0.1 # Strong regularization
+    lr_class_weight: str = "balanced"
+    random_state: int = 42
+    lr_max_iter: int = 10000
 
 @dataclass
 class PipelineConfig:
-    model_type: str = "lightgbm"
+    model_type: str = "piecewise"
     random_state: int = 42
     test_size: float = 0.15
     n_cv_splits: int = 8
-    shap_sample_size: int = 5000
+    shap_sample_size: int = 10000
     use_rfe: bool = False
-
 
 @dataclass
 class GlobalConfig:
@@ -55,6 +67,7 @@ class GlobalConfig:
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
     lgb: LightGBMConfig = field(default_factory=LightGBMConfig)
     lr: LogisticRegressionConfig = field(default_factory=LogisticRegressionConfig)
+    piecewise: PiecewiseConfig = field(default_factory=PiecewiseConfig)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
 
 

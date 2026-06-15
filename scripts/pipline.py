@@ -11,7 +11,7 @@ from scripts.feature_engineering import (
 )
 from scripts.preprocess import BaselinePreprocessor
 from scripts.feature_selection import RFEFeatureSelector
-from scripts.models import LogisticRegressionModel, GradientBoostingModel
+from scripts.models import LogisticRegressionModel, GradientBoostingModel, PiecewiseLinearModel
 from scripts.predict import CreditRiskPredictor
 from scripts.config import CONFIG
 
@@ -110,17 +110,17 @@ def get_model_name():
     return getattr(CONFIG.pipeline, "model_type", "lightgbm").lower()
 
 
-def get_model_from_config():
-    """
-    OOP Factory Pattern: Returns the correct model instance based on the configuration.
-    """
-    model_type = get_model_name()
+def get_model_from_config(override_type=None):
+    model_type = override_type or getattr(CONFIG.pipeline, "model_type", "lightgbm").lower()
+    
     if model_type == "logistic":
         return LogisticRegressionModel()
     elif model_type == "lightgbm":
         return GradientBoostingModel()
+    elif model_type == "piecewise":
+        return PiecewiseLinearModel()
     else:
-        raise ValueError(f"Unknown model_type in config: {model_type}")
+        raise ValueError(f"Unknown model_type: {model_type}")
 
 
 def run_interpretability_reports(model, X_train: pd.DataFrame, client_ids: pd.Series):
@@ -208,6 +208,32 @@ def run_prediction_pipeline() -> None:
     except Exception as e:
         logger.critical(f"Prediction pipeline failed: {e}")
         raise
+
+def run_model_comparison():
+    """Runs an A/B/C test across the three architectures."""
+    logger.info("=== STARTING ARCHITECTURE COMPARISON ===")
+    
+    preprocessor = BaselinePreprocessor()
+    df_merged = load_and_engineer_features(preprocessor, dataset_type="train")
+    
+    # We must use WOE for the linear models to handle categorical variables!
+    X_train, X_val, y_train, y_val, _ = split_and_preprocess(df_merged, preprocessor, use_woe=True)
+    
+    architectures = ["logistic", "piecewise", "lightgbm"]
+    results = {}
+    
+    from sklearn.metrics import roc_auc_score
+    
+    for arch in architectures:
+        model = get_model_from_config(override_type=arch)
+        model.train(X_train, y_train, X_val, y_val)
+        
+        preds = model.predict_proba(X_val)
+        auc = roc_auc_score(y_val, preds)
+        results[arch] = auc
+        logger.info(f"Architecture [{arch.upper()}] Validation AUC: {auc:.4f}")
+        
+    logger.info(f"Comparison Complete: {results}")
 
 if __name__ == "__main__":
     try:
