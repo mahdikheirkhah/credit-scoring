@@ -14,45 +14,45 @@ class PreprocessConfig:
 @dataclass
 class LightGBMConfig:
     n_estimators: int = 1000
-    learning_rate: float = 0.083
+    learning_rate: float = 0.085
     max_depth: int = 3
-    subsample: float = 0.6
+    subsample: float = 0.5
     colsample_bytree: float = 0.8
-    class_weight: str = "balanced"
-    # class_weight: dict = field(default_factory=lambda: {0: 2.0, 1: 12.0})
+    #class_weight: str = "balanced"
+    class_weight: dict = field(default_factory=lambda: {0: 1.0, 1: 128.0})
     n_jobs: int = -1
     verbose: int = -1
     random_state: int = 42
     early_stopping_rounds: int = 50
-
+    linear_tree: bool = False
 
 @dataclass
 class LogisticRegressionConfig:
     class_weight: str = "balanced"
-    max_iter: int = 1500
+    max_iter: int = 100000
     rfe_c_value: float = 0.1
     rfe_n_features: int = 250
     rfe_step: float = 0.1
-    rfe_max_iter: int = 20000
+    rfe_max_iter: int = 100000
     random_state: int = 42
-    linear_tree: bool = True
+
 
 @dataclass
 class PiecewiseConfig:
     # Tree Parameters
     max_depth: int = 3  # Creates up to 8 distinct "Borrower Personas"
-    min_samples_leaf: int = 100000  # Ensures enough data in each leaf for stable LR
+    min_samples_leaf: int = 270000  # Ensures enough data in each leaf for stable LR
     tree_class_weight: str = "balanced"
     
     # Logistic Regression Parameters
     lr_c_value: float = 0.1 # Strong regularization
     lr_class_weight: str = "balanced"
     random_state: int = 42
-    lr_max_iter: int = 10000
+    lr_max_iter: int = 100000
 
 @dataclass
 class PipelineConfig:
-    model_type: str = "logistic"
+    model_type: str = "lightgbm"
     random_state: int = 42
     test_size: float = 0.15
     n_cv_splits: int = 5

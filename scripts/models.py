@@ -307,7 +307,61 @@ class PiecewiseLinearModel(BaseCreditModel):
             probabilities[mask] = model.predict_proba(X[mask])[:, 1]
             
         return probabilities
+    # Add this inside the PiecewiseLinearModel class in scripts/models.py
+
+    def generate_interpretability_reports(self, feature_names: list, output_dir: str = "results/model"):
+        """Natively handles interpretability for the Double-Tree model."""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import os
         
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 1. Global Feature Importance (From the Segmenter Tree)
+        importances = self.tree.feature_importances_
+        tree_df = pd.DataFrame({'Feature': feature_names, 'Importance': importances})
+        tree_df = tree_df[tree_df['Importance'] > 0].sort_values(by='Importance', ascending=False).head(15)
+        
+        if not tree_df.empty:
+            plt.figure(figsize=(10, 6))
+            sns.barplot(data=tree_df, x='Importance', y='Feature', palette='viridis')
+            plt.title('Piecewise Global Segmenter: Top Split Features')
+            plt.xlabel('Gini Importance')
+            plt.tight_layout()
+            plt.savefig(f"{output_dir}/piecewise_global_importance.png", dpi=300)
+            plt.close()
+            logger.info(f"Saved Global Feature Importance to {output_dir}/piecewise_global_importance.png")
+            
+        # 2. Leaf Coefficient Comparison (Fixing the empty plot)
+        audit_dict = self.extract_leaf_coefficients(feature_names)
+        leaves = list(audit_dict.keys())
+        
+        if len(leaves) >= 2:
+            # Grab the top 5 features from Leaf A and top 5 from Leaf B
+            top_features_1 = audit_dict[leaves[0]].head(5)['Feature'].tolist()
+            top_features_2 = audit_dict[leaves[1]].head(5)['Feature'].tolist()
+            
+            # Combine them so we have a unified list of the most important drivers across both segments
+            combined_top_features = list(set(top_features_1 + top_features_2))
+            
+            # Safely extract ONLY those combined features from both leaves
+            df1 = audit_dict[leaves[0]][audit_dict[leaves[0]]['Feature'].isin(combined_top_features)].copy()
+            df1['Segment'] = f"Borrower Segment (Leaf {leaves[0]})"
+            
+            df2 = audit_dict[leaves[1]][audit_dict[leaves[1]]['Feature'].isin(combined_top_features)].copy()
+            df2['Segment'] = f"Borrower Segment (Leaf {leaves[1]})"
+            
+            plot_df = pd.concat([df1, df2])
+            
+            if not plot_df.empty:
+                plt.figure(figsize=(12, 8))
+                sns.barplot(data=plot_df, x='Coefficient', y='Feature', hue='Segment', palette='Set1')
+                plt.title("Shifting Risk Drivers Between Borrower Segments")
+                plt.tight_layout()
+                plt.savefig(f"{output_dir}/piecewise_leaf_comparison.png", dpi=300)
+                plt.close()
+                logger.info(f"Saved Leaf Comparison Plot to {output_dir}/piecewise_leaf_comparison.png")
+    
     def extract_leaf_coefficients(self, feature_names: list) -> dict:
         """Returns the specific regression equations for regulatory audits."""
         audit_dict = {}

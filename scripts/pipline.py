@@ -14,6 +14,8 @@ from scripts.feature_selection import RFEFeatureSelector
 from scripts.models import LogisticRegressionModel, GradientBoostingModel, PiecewiseLinearModel
 from scripts.predict import CreditRiskPredictor
 from scripts.config import CONFIG
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # ==============================================================================
 # PIPELINE MODULES (Single Responsibility Principle)
@@ -130,6 +132,8 @@ def run_interpretability_reports(model, X_train: pd.DataFrame, client_ids: pd.Se
     coefficients for baseline linear models to satisfy regulatory audits.
     """
     logger.info("Generating Interpretability artifacts...")
+    feature_names = X_train.columns.tolist()
+    
     if isinstance(model, GradientBoostingModel):
         # Global and Local SHAP for advanced trees
         model.generate_global_shap(
@@ -139,14 +143,17 @@ def run_interpretability_reports(model, X_train: pd.DataFrame, client_ids: pd.Se
             )
         )
         model.generate_local_shap(X_train.iloc[[0]], str(client_ids.iloc[0]), "train")
-        model.generate_local_shap(X_train.iloc[[1]], str(client_ids.iloc[1]), "train")
+        
     elif isinstance(model, LogisticRegressionModel):
         # Global Coefficients for baseline linear models
-        coef_df = model.extract_coefficients(X_train.columns.tolist())
+        coef_df = model.extract_coefficients(feature_names)
         os.makedirs("results/model", exist_ok=True)
         coef_df.to_csv("results/model/baseline_coefficients.csv", index=False)
         logger.info(f"Saved baseline coefficients. Top 3 drivers:\n{coef_df.head(3)}")
-
+        
+    elif isinstance(model, PiecewiseLinearModel):
+        # ---> NEW: Calls the native reporting method we just built <---
+        model.generate_interpretability_reports(feature_names)
 
 # ==============================================================================
 # ORCHESTRATION (The Maestro)
@@ -210,7 +217,9 @@ def run_prediction_pipeline() -> None:
         raise
 
 def run_model_comparison():
-    """Runs an A/B/C test across the three architectures."""
+    """Runs an A/B/C test across the three architectures and generates a visual report."""
+
+    
     logger.info("=== STARTING ARCHITECTURE COMPARISON ===")
     
     preprocessor = BaselinePreprocessor()
@@ -222,7 +231,6 @@ def run_model_comparison():
     architectures = ["logistic", "piecewise", "lightgbm"]
     results = {}
     
-    
     for arch in architectures:
         model = get_model_from_config(override_type=arch)
         model.train(X_train, y_train, X_val, y_val)
@@ -233,11 +241,34 @@ def run_model_comparison():
         logger.info(f"Architecture [{arch.upper()}] Validation AUC: {auc:.4f}")
         
     logger.info(f"Comparison Complete: {results}")
+    
+    # ---> NEW: Build and Save the Comparison Plot <---
+    os.makedirs("results/model", exist_ok=True)
+    plt.figure(figsize=(10, 6))
+    
+    # Create the bar chart
+    ax = sns.barplot(x=list(results.keys()), y=list(results.values()), palette="magma")
+    plt.ylim(0.5, 1.0) # AUC is strictly bound between 0.5 and 1.0
+    
+    # Annotate the exact AUC score on top of each bar
+    for i, v in enumerate(results.values()):
+        ax.text(i, v + 0.005, f"{v:.4f}", ha='center', va='bottom', fontweight='bold', fontsize=12)
+        
+    plt.title("Architecture Performance Comparison: Validation ROC-AUC", fontsize=14, pad=15)
+    plt.ylabel("ROC-AUC Score", fontsize=12)
+    plt.xlabel("Model Architecture", fontsize=12)
+    
+    plt.tight_layout()
+    plot_path = "results/model/architecture_comparison.png"
+    plt.savefig(plot_path, dpi=300)
+    plt.close()
+    
+    logger.info(f"Successfully saved architecture comparison plot to {plot_path}")
 
 if __name__ == "__main__":
     try:
         logger.info("Pipeline Orchestrator Initialized.")
-        #run_model_comparison()
+       # run_model_comparison()
         # Ablation Configuration
         run_training_pipeline(use_woe=CONFIG.preprocess.use_woe, use_rfe=CONFIG.pipeline.use_rfe)
         run_prediction_pipeline()

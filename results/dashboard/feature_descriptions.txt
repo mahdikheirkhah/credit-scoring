@@ -1,0 +1,230 @@
+SK_ID_CURR: ID of loan in our sample
+TARGET: Target variable (1 - client with payment difficulties: he/she had late payment more than X days on at least one of the first Y installments of the loan in our sample, 0 - all other cases)
+NAME_CONTRACT_TYPE: Identification if loan is cash or revolving
+CODE_GENDER: Gender of the client
+FLAG_OWN_CAR: Flag if the client owns a car
+FLAG_OWN_REALTY: Flag if client owns a house or flat
+CNT_CHILDREN: Number of children the client has
+AMT_INCOME_TOTAL: Income of the client
+AMT_CREDIT: Credit amount of the loan
+AMT_ANNUITY: Loan annuity
+AMT_GOODS_PRICE: For consumer loans it is the price of the goods for which the loan is given
+NAME_TYPE_SUITE: Who was accompanying client when he was applying for the loan
+NAME_INCOME_TYPE: Clients income type (businessman, working, maternity leave,…)
+NAME_EDUCATION_TYPE: Level of highest education the client achieved
+NAME_FAMILY_STATUS: Family status of the client
+NAME_HOUSING_TYPE: What is the housing situation of the client (renting, living with parents, ...)
+REGION_POPULATION_RELATIVE: Normalized population of region where client lives (higher number means the client lives in more populated region)
+DAYS_BIRTH: Client's age in days at the time of application
+DAYS_EMPLOYED: How many days before the application the person started current employment
+DAYS_REGISTRATION: How many days before the application did client change his registration
+DAYS_ID_PUBLISH: How many days before the application did client change the identity document with which he applied for the loan
+OWN_CAR_AGE: Age of client's car
+FLAG_MOBIL: Did client provide mobile phone (1=YES, 0=NO)
+FLAG_EMP_PHONE: Did client provide work phone (1=YES, 0=NO)
+FLAG_WORK_PHONE: Did client provide home phone (1=YES, 0=NO)
+FLAG_CONT_MOBILE: Was mobile phone reachable (1=YES, 0=NO)
+FLAG_PHONE: Did client provide home phone (1=YES, 0=NO)
+FLAG_EMAIL: Did client provide email (1=YES, 0=NO)
+OCCUPATION_TYPE: What kind of occupation does the client have
+CNT_FAM_MEMBERS: How many family members does client have
+REGION_RATING_CLIENT: Our rating of the region where client lives (1,2,3)
+REGION_RATING_CLIENT_W_CITY: Our rating of the region where client lives with taking city into account (1,2,3)
+WEEKDAY_APPR_PROCESS_START: On which day of the week did the client apply for the loan
+HOUR_APPR_PROCESS_START: Approximately at what hour did the client apply for the loan
+REG_REGION_NOT_LIVE_REGION: Flag if client's permanent address does not match contact address (1=different, 0=same, at region level)
+REG_REGION_NOT_WORK_REGION: Flag if client's permanent address does not match work address (1=different, 0=same, at region level)
+LIVE_REGION_NOT_WORK_REGION: Flag if client's contact address does not match work address (1=different, 0=same, at region level)
+REG_CITY_NOT_LIVE_CITY: Flag if client's permanent address does not match contact address (1=different, 0=same, at city level)
+REG_CITY_NOT_WORK_CITY: Flag if client's permanent address does not match work address (1=different, 0=same, at city level)
+LIVE_CITY_NOT_WORK_CITY: Flag if client's contact address does not match work address (1=different, 0=same, at city level)
+ORGANIZATION_TYPE: Type of organization where client works
+EXT_SOURCE_1: Normalized score from external data source
+EXT_SOURCE_2: Normalized score from external data source
+EXT_SOURCE_3: Normalized score from external data source
+APARTMENTS_AVG: Normalized information about building where the client lives (Average apartment size)
+BASEMENTAREA_AVG: Normalized information about building where the client lives (Average basement area)
+YEARS_BEGINEXPLUATATION_AVG: Normalized information about building where the client lives (Average age of building)
+YEARS_BUILD_AVG: Normalized information about building where the client lives (Average years built)
+COMMONAREA_AVG: Normalized information about building where the client lives (Average common area)
+ELEVATORS_AVG: Normalized information about building where the client lives (Average number of elevators)
+ENTRANCES_AVG: Normalized information about building where the client lives (Average number of entrances)
+FLOORSMAX_AVG: Normalized information about building where the client lives (Average maximum floors)
+FLOORSMIN_AVG: Normalized information about building where the client lives (Average minimum floors)
+LANDAREA_AVG: Normalized information about building where the client lives (Average land area)
+LIVINGAPARTMENTS_AVG: Normalized information about building where the client lives (Average living apartments)
+LIVINGAREA_AVG: Normalized information about building where the client lives (Average living area)
+NONLIVINGAPARTMENTS_AVG: Normalized information about building where the client lives (Average non-living apartments)
+NONLIVINGAREA_AVG: Normalized information about building where the client lives (Average non-living area)
+APARTMENTS_MODE: Normalized information about building where the client lives (Mode apartment size)
+BASEMENTAREA_MODE: Normalized information about building where the client lives (Mode basement area)
+YEARS_BEGINEXPLUATATION_MODE: Normalized information about building where the client lives (Mode age of building)
+YEARS_BUILD_MODE: Normalized information about building where the client lives (Mode years built)
+COMMONAREA_MODE: Normalized information about building where the client lives (Mode common area)
+ELEVATORS_MODE: Normalized information about building where the client lives (Mode number of elevators)
+ENTRANCES_MODE: Normalized information about building where the client lives (Mode number of entrances)
+FLOORSMAX_MODE: Normalized information about building where the client lives (Mode maximum floors)
+FLOORSMIN_MODE: Normalized information about building where the client lives (Mode minimum floors)
+LANDAREA_MODE: Normalized information about building where the client lives (Mode land area)
+LIVINGAPARTMENTS_MODE: Normalized information about building where the client lives (Mode living apartments)
+LIVINGAREA_MODE: Normalized information about building where the client lives (Mode living area)
+NONLIVINGAPARTMENTS_MODE: Normalized information about building where the client lives (Mode non-living apartments)
+NONLIVINGAREA_MODE: Normalized information about building where the client lives (Mode non-living area)
+APARTMENTS_MEDI: Normalized information about building where the client lives (Median apartment size)
+BASEMENTAREA_MEDI: Normalized information about building where the client lives (Median basement area)
+YEARS_BEGINEXPLUATATION_MEDI: Normalized information about building where the client lives (Median age of building)
+YEARS_BUILD_MEDI: Normalized information about building where the client lives (Median years built)
+COMMONAREA_MEDI: Normalized information about building where the client lives (Median common area)
+ELEVATORS_MEDI: Normalized information about building where the client lives (Median number of elevators)
+ENTRANCES_MEDI: Normalized information about building where the client lives (Median number of entrances)
+FLOORSMAX_MEDI: Normalized information about building where the client lives (Median maximum floors)
+FLOORSMIN_MEDI: Normalized information about building where the client lives (Median minimum floors)
+LANDAREA_MEDI: Normalized information about building where the client lives (Median land area)
+LIVINGAPARTMENTS_MEDI: Normalized information about building where the client lives (Median living apartments)
+LIVINGAREA_MEDI: Normalized information about building where the client lives (Median living area)
+NONLIVINGAPARTMENTS_MEDI: Normalized information about building where the client lives (Median non-living apartments)
+NONLIVINGAREA_MEDI: Normalized information about building where the client lives (Median non-living area)
+FONDKAPREMONT_MODE: Normalized information about building where the client lives
+HOUSETYPE_MODE: Normalized information about building where the client lives
+TOTALAREA_MODE: Normalized information about building where the client lives
+WALLSMATERIAL_MODE: Normalized information about building where the client lives
+EMERGENCYSTATE_MODE: Normalized information about building where the client lives
+OBS_30_CNT_SOCIAL_CIRCLE: How many observation of client's social surroundings with observable 30 DPD (days past due) default
+DEF_30_CNT_SOCIAL_CIRCLE: How many observation of client's social surroundings defaulted on 30 DPD (days past due)
+OBS_60_CNT_SOCIAL_CIRCLE: How many observation of client's social surroundings with observable 60 DPD (days past due) default
+DEF_60_CNT_SOCIAL_CIRCLE: How many observation of client's social surroundings defaulted on 60 (days past due) DPD
+DAYS_LAST_PHONE_CHANGE: How many days before application did client change phone
+FLAG_DOCUMENT_2: Did client provide document 2
+FLAG_DOCUMENT_3: Did client provide document 3
+FLAG_DOCUMENT_4: Did client provide document 4
+FLAG_DOCUMENT_5: Did client provide document 5
+FLAG_DOCUMENT_6: Did client provide document 6
+FLAG_DOCUMENT_7: Did client provide document 7
+FLAG_DOCUMENT_8: Did client provide document 8
+FLAG_DOCUMENT_9: Did client provide document 9
+FLAG_DOCUMENT_10: Did client provide document 10
+FLAG_DOCUMENT_11: Did client provide document 11
+FLAG_DOCUMENT_12: Did client provide document 12
+FLAG_DOCUMENT_13: Did client provide document 13
+FLAG_DOCUMENT_14: Did client provide document 14
+FLAG_DOCUMENT_15: Did client provide document 15
+FLAG_DOCUMENT_16: Did client provide document 16
+FLAG_DOCUMENT_17: Did client provide document 17
+FLAG_DOCUMENT_18: Did client provide document 18
+FLAG_DOCUMENT_19: Did client provide document 19
+FLAG_DOCUMENT_20: Did client provide document 20
+FLAG_DOCUMENT_21: Did client provide document 21
+AMT_REQ_CREDIT_BUREAU_HOUR: Number of enquiries to Credit Bureau about the client one hour before application
+AMT_REQ_CREDIT_BUREAU_DAY: Number of enquiries to Credit Bureau about the client one day before application (excluding one hour before application)
+AMT_REQ_CREDIT_BUREAU_WEEK: Number of enquiries to Credit Bureau about the client one week before application (excluding one day before application)
+AMT_REQ_CREDIT_BUREAU_MON: Number of enquiries to Credit Bureau about the client one month before application (excluding one week before application)
+AMT_REQ_CREDIT_BUREAU_QRT: Number of enquiries to Credit Bureau about the client 3 month before application (excluding one month before application)
+AMT_REQ_CREDIT_BUREAU_YEAR: Number of enquiries to Credit Bureau about the client one day year (excluding last 3 months before application)
+SK_BUREAU_ID: Recoded ID of previous Credit Bureau credit related to our loan (unique coding for each loan application)
+CREDIT_ACTIVE: Status of the Credit Bureau (CB) reported credits
+CREDIT_CURRENCY: Recoded currency of the Credit Bureau credit
+DAYS_CREDIT: How many days before current application did client apply for Credit Bureau credit
+CREDIT_DAY_OVERDUE: Number of days past due on CB credit at the time of application for related loan in our sample
+DAYS_CREDIT_ENDDATE: Remaining duration of CB credit (in days) at the time of application in Home Credit
+DAYS_ENDDATE_FACT: Days since CB credit ended at the time of application in Home Credit (only for closed credit)
+AMT_CREDIT_MAX_OVERDUE: Maximal amount overdue on the Credit Bureau credit so far (at application date of loan in our sample)
+CNT_CREDIT_PROLONG: How many times was the Credit Bureau credit prolonged
+AMT_CREDIT_SUM: Current credit amount for the Credit Bureau credit
+AMT_CREDIT_SUM_DEBT: Current debt on Credit Bureau credit
+AMT_CREDIT_SUM_LIMIT: Current credit limit of credit card reported in Credit Bureau
+AMT_CREDIT_SUM_OVERDUE: Current amount overdue on Credit Bureau credit
+CREDIT_TYPE: Type of Credit Bureau credit (Car, cash,...)
+DAYS_CREDIT_UPDATE: How many days before loan application did last information about the Credit Bureau credit come
+SK_ID_PREV: ID of previous credit in Home Credit related to loan in our sample.
+MONTHS_BALANCE: Month of balance relative to application date
+STATUS: Status of Credit Bureau loan during the month (active, closed, DPD0-30,…)
+CNT_INSTALMENT: Term of previous credit (can change over time)
+CNT_INSTALMENT_FUTURE: Installments left to pay on the previous credit
+NAME_CONTRACT_STATUS: Contract status during the month
+SK_DPD: DPD (days past due) during the month of previous credit
+SK_DPD_DEF: DPD during the month with tolerance (debts with low loan amounts are ignored) of the previous credit
+AMT_BALANCE: Balance during the month of previous credit
+AMT_CREDIT_LIMIT_ACTUAL: Credit card limit during the month of the previous credit
+AMT_DRAWINGS_ATM_CURRENT: Amount drawing at ATM during the month of the previous credit
+AMT_DRAWINGS_CURRENT: Amount drawing during the month of the previous credit
+AMT_DRAWINGS_OTHER_CURRENT: Amount of other drawings during the month of the previous credit
+AMT_DRAWINGS_POS_CURRENT: Amount drawing or buying goods during the month of the previous credit
+AMT_INST_MIN_REGULARITY: Minimal installment for this month of the previous credit
+AMT_PAYMENT_CURRENT: How much did the client pay during the month on the previous credit
+AMT_PAYMENT_TOTAL_CURRENT: How much did the client pay during the month in total on the previous credit
+AMT_RECEIVABLE_PRINCIPAL: Amount receivable for principal on the previous credit
+AMT_RECIVABLE: Amount receivable on the previous credit
+AMT_TOTAL_RECEIVABLE: Total amount receivable on the previous credit
+CNT_DRAWINGS_ATM_CURRENT: Number of drawings at ATM during this month on the previous credit
+CNT_DRAWINGS_CURRENT: Number of drawings during this month on the previous credit
+CNT_DRAWINGS_OTHER_CURRENT: Number of other drawings during this month on the previous credit
+CNT_DRAWINGS_POS_CURRENT: Number of drawings for goods during this month on the previous credit
+CNT_INSTALMENT_MATURE_CUM: Number of paid installments on the previous credit
+AMT_APPLICATION: For how much credit did client ask on the previous application
+AMT_DOWN_PAYMENT: Down payment on the previous application
+FLAG_LAST_APPL_PER_CONTRACT: Flag if it was last application for the previous contract.
+NFLAG_LAST_APPL_IN_DAY: Flag if the application was the last application per day of the client.
+NFLAG_MICRO_CASH: Flag Micro finance loan
+RATE_DOWN_PAYMENT: Down payment rate normalized on previous credit
+RATE_INTEREST_PRIMARY: Interest rate normalized on previous credit
+RATE_INTEREST_PRIVILEGED: Interest rate normalized on previous credit
+NAME_CASH_LOAN_PURPOSE: Purpose of the cash loan
+DAYS_DECISION: Relative to current application when was the decision about previous application made
+NAME_PAYMENT_TYPE: Payment method that client chose to pay for the previous application
+CODE_REJECT_REASON: Why was the previous application rejected
+NAME_CLIENT_TYPE: Was the client old or new client when applying for the previous application
+NAME_GOODS_CATEGORY: What kind of goods did the client apply for in the previous application
+NAME_PORTFOLIO: Was the previous application for CASH, POS, CAR, …
+NAME_PRODUCT_TYPE: Was the previous application x-sell o walk-in
+CHANNEL_TYPE: Through which channel we acquired the client on the previous application
+SELLERPLACE_AREA: Selling area of seller place of the previous application
+NAME_SELLER_INDUSTRY: The industry of the seller
+CNT_PAYMENT: Term of previous credit at application of the previous application
+NAME_YIELD_GROUP: Grouped interest rate into small medium and high of the previous application
+PRODUCT_COMBINATION: Detailed product combination of the previous application
+DAYS_FIRST_DRAWING: Relative to application date of current application when was the first disbursement of the previous application
+DAYS_FIRST_DUE: Relative to application date of current application when was the first due supposed to be of the previous application
+DAYS_LAST_DUE_1ST_VERSION: Relative to application date of current application when was the first due of the previous application
+DAYS_LAST_DUE: Relative to application date of current application when was the last due date of the previous application
+DAYS_TERMINATION: Relative to application date of current application when was the expected termination of the previous application
+NFLAG_INSURED_ON_APPROVAL: Did the client requested insurance during the previous application
+NUM_INSTALMENT_VERSION: Version of installment calendar (0 is for credit card) of previous credit.
+NUM_INSTALMENT_NUMBER: On which installment we observe payment
+DAYS_INSTALMENT: When the installment of previous credit was supposed to be paid
+DAYS_ENTRY_PAYMENT: When was the installments of previous credit paid actually
+AMT_INSTALMENT: What was the prescribed installment amount of previous credit on this installment
+AMT_PAYMENT: What the client actually paid on previous credit on this installment
+RECENT_LOAN_FLAG: Flag indicating application for external credit within the last 180 days (credit hunger)
+HAS_BEEN_OVERDUE: Flag indicating if the client has an overdue history on external credit
+IS_OPEN_ENDED_CREDIT: Flag indicating presence of revolving/open-ended credit
+BUREAU_DEBT_CREDIT_RATIO: Ratio of Current Debt to Current Credit Sum in external bureau data
+BUREAU_ACTIVE_DEBT_RATIO: Ratio of Current Debt to Current Credit Limit on active external loans
+STATUS_CLOSED: Flag for closed status in bureau balance
+STATUS_UNKNOWN: Flag for unknown status in bureau balance
+STATUS_SEVERE_DPD: Flag for severe days past due in bureau balance
+STATUS_NUMERIC: Numeric representation of bureau balance status
+IS_APPROVED: Flag if previous application was approved
+IS_REFUSED: Flag if previous application was refused
+POS_IS_LATE: Flag if POS cash loan is late (>0 DPD)
+POS_IS_SEVERE_LATE: Flag if POS cash loan is severely late (>30 DPD)
+POS_IS_ACTIVE: Flag if POS cash loan is active
+POS_IS_COMPLETED: Flag if POS cash loan is completed
+CC_UTILIZATION: Credit Card Utilization (Balance / Limit). High value indicates maxing out cards
+CC_ATM_DRAWING_RATIO: Ratio of ATM Cash Advances to Credit Limit. High value indicates severe cash desperation
+CC_IS_LATE: Flag if credit card payment is late
+CC_IS_SEVERE_LATE: Flag if credit card payment is severely late
+IS_MISSED_PAYMENT: Flag if an installment payment was missed entirely
+PAYMENT_DELAY: Days between actual payment and due date (Positive = Late, Negative = Early)
+IS_LATE: Flag if installment payment is late
+IS_SEVERE_LATE: Flag if installment payment is severely late (>30 days)
+PAYMENT_FRACTION: Ratio of amount paid to prescribed installment amount (1.0 = perfect payment, <1.0 = underpayment)
+IS_UNDERPAID: Flag if installment payment was underpaid
+AREA_WAS_NEGATIVE: Flag if seller place area was negative (-1 system anomaly)
+HAS_DISBURSEMENT_INFO: Flag indicating presence of first drawing info
+HAS_DOWN_PAYMENT: Flag indicating presence of down payment info
+HAS_INTEREST_RATE: Flag indicating presence of interest rate info
+PREV_IS_APPROVED: Flag if previous application was approved
+PREV_IS_REFUSED: Flag if previous application was refused
+PREV_IS_CANCELED: Flag if previous application was canceled
+APPLICATION_CREDIT_RATIO: Ratio of amount applied for vs amount granted. >1.0 means asking for more than allowed
+YIELD_HIGH: Flag if previous application interest rate yield was high

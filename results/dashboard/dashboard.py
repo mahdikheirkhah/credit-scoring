@@ -13,10 +13,12 @@ from scripts.preprocess import BaselinePreprocessor
 from scripts.pipline import load_and_engineer_features
 
 # ==========================================
-# 0. INITIALIZE DROPDOWN DATA
+# 0. INITIALIZE DROPDOWN DATA & DICTIONARY
 # ==========================================
-# We load the IDs before the app starts so the Dropdown is populated instantly.
 SAMPLE_PATH = "results/dashboard_sample.csv"
+# Pointing to the renamed file exactly as requested
+DICT_PATH = "results/dashboard/feature_descriptions.txt"
+
 try:
     if os.path.exists(SAMPLE_PATH):
         sample_df = pd.read_csv(SAMPLE_PATH, usecols=['SK_ID_CURR'])
@@ -27,6 +29,54 @@ try:
 except Exception as e:
     logger.warning(f"Could not load dropdown options: {e}")
     CLIENT_OPTIONS = []
+
+def load_feature_dictionary(filepath):
+    feature_dict = {}
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
+            for line in f:
+                if ':' in line:
+                    parts = line.split(':', 1)
+                    key = parts[0].strip()
+                    val = parts[1].strip()
+                    feature_dict[key] = val
+    else:
+        logger.warning(f"Feature dictionary not found at {filepath}")
+    return feature_dict
+
+FEATURE_DICT = load_feature_dictionary(DICT_PATH)
+
+def get_feature_description(feature_name):
+    """Attempts to match the engineered feature name back to the base dictionary description."""
+    if feature_name in FEATURE_DICT:
+        return FEATURE_DICT[feature_name]
+        
+    for key, desc in FEATURE_DICT.items():
+        if key in feature_name:
+            if '_MAX' in feature_name: return f"Maximum recorded value of: {desc}"
+            if '_MEAN' in feature_name or '_AVG' in feature_name: return f"Average recorded value of: {desc}"
+            if '_SUM' in feature_name: return f"Total sum of: {desc}"
+            if '_MIN' in feature_name: return f"Minimum recorded value of: {desc}"
+            if 'WAS_MISSING' in feature_name: return f"Flag indicating if data was originally missing for: {desc}"
+            return f"Derived from: {desc}"
+            
+    custom_desc = {
+        'CC_UTILIZATION': "Credit Card Utilization (Balance / Limit). High value indicates maxing out cards.",
+        'CC_ATM_DRAWING_RATIO': "Ratio of ATM Cash Advances to Credit Limit. High value indicates severe cash desperation.",
+        'CC_IS_LATE': "Count of months the client was late on a credit card payment.",
+        'PAYMENT_DELAY': "Days between actual payment and due date (Positive = Late, Negative = Early).",
+        'PAYMENT_FRACTION': "Ratio of Amount Paid to Prescribed Amount (1.0 = perfect payment, <1.0 = underpayment).",
+        'APPLICATION_CREDIT_RATIO': "Ratio of Amount Applied For vs Amount Granted. >1.0 means asking for more than allowed.",
+        'IS_OPEN_ENDED_CREDIT': "Flag indicating presence of revolving/credit card debt reported by the bureau.",
+        'BUREAU_ACTIVE_DEBT_RATIO': "Ratio of Current Debt to Current Credit Limit on active external loans.",
+        'RECENT_LOAN_FLAG': "Flag indicating application for external credit within the last 180 days (credit hunger)."
+    }
+    
+    for custom_key, desc in custom_desc.items():
+         if custom_key in feature_name:
+             return desc
+
+    return "No description available for this engineered feature."
 
 # Initialize the Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
@@ -75,7 +125,6 @@ app.layout = dbc.Container([
                     html.H5("Control Panel", className="card-title"),
                     
                     html.Label("Select Client ID:"),
-                    # ---> THE NEW DROPDOWN <---
                     dcc.Dropdown(
                         id="client-input",
                         options=CLIENT_OPTIONS,
@@ -111,6 +160,12 @@ app.layout = dbc.Container([
                 dbc.CardBody([
                     html.H5("Mathematical Audit Trail (Top 10 Risk Drivers)", className="card-title"),
                     html.Div(id="tree-path-output", className="text-muted mb-2"),
+                    
+                    # ---> THE VISUAL GUIDE FOR HOVERING <---
+                    html.Div([
+                        html.Span("💡 Guide: Hover your mouse over any bar to view the business definition, the client's exact actual value, and the mathematical weight applied.")
+                    ], className="alert alert-info py-2 my-3 border-0"),
+                    
                     dcc.Graph(id="explainability-plot")
                 ])
             ], className="shadow-sm")
@@ -171,65 +226,50 @@ def update_dashboard(n_clicks, client_id, model_type):
     
     tree_path_text = ""
     feature_names = X_final.columns.tolist()
-    client_values = X_final.iloc[0].values
+    client_values = X_final.iloc[0].values # The exact raw values for THIS specific client
 
-    # ---> THE OOP FIX IS HERE <---
+    # ---> EXTRACTING LOCAL FEATURES AND WEIGHTS <---
     if model_type == 'logistic':
-        # model_obj IS the LogisticRegression instance
         weights = model_obj.coef_[0]
         impacts = weights * client_values
-        plot_df = pd.DataFrame({'Feature': feature_names, 'Impact': impacts})
+        plot_df = pd.DataFrame({'Feature': feature_names, 'Client Value': client_values, 'Model Weight': weights, 'Impact': impacts})
         title = "Global Equation: Feature Value × Global Coefficient"
         
     elif model_type == 'piecewise':
-        # model_obj IS the Piecewise wrapper instance
         leaf_id = model_obj.tree.apply(X_final)[0]
         local_model = model_obj.leaf_models.get(leaf_id, model_obj.global_fallback)
         weights = local_model.coef_[0]
         impacts = weights * client_values
         
-        plot_df = pd.DataFrame({'Feature': feature_names, 'Impact': impacts})
+        plot_df = pd.DataFrame({'Feature': feature_names, 'Client Value': client_values, 'Model Weight': weights, 'Impact': impacts})
         tree_path_text = html.Strong(f"Assigned to Borrower Segment: Leaf Node {leaf_id}")
         title = f"Local Econometric Equation (Leaf {leaf_id}): Feature Value × Local Coefficient"
         
     elif model_type == 'lightgbm':
-        # model_obj IS the LGBMClassifier instance
         explainer = shap.TreeExplainer(model_obj)
         shap_values = explainer.shap_values(X_final)
         
-        if isinstance(shap_values, list):
-            impacts = shap_values[1][0]
-        else:
-            impacts = shap_values[0]
+        impacts = shap_values[1][0] if isinstance(shap_values, list) else shap_values[0]
             
-        plot_df = pd.DataFrame({'Feature': feature_names, 'Impact': impacts})
+        plot_df = pd.DataFrame({'Feature': feature_names, 'Client Value': client_values, 'Model Weight': "N/A (Tree Based)", 'Impact': impacts})
         title = "Black Box Approximation: SHAP Values"
 
+    # Format numbers so they are readable in the hover
+    plot_df['Client Value'] = plot_df['Client Value'].apply(lambda x: f"{x:,.4g}" if isinstance(x, (int, float)) else x)
+    plot_df['Model Weight'] = plot_df['Model Weight'].apply(lambda x: f"{x:,.4g}" if isinstance(x, (int, float)) else x)
+
     plot_df['Abs_Impact'] = plot_df['Impact'].abs()
-    plot_df = plot_df.sort_values(by='Abs_Impact', ascending=False).head(10)
-    plot_df['Color'] = np.where(plot_df['Impact'] > 0, '#e74c3c', '#2ecc71')
-    
-    fig = px.bar(
-        plot_df, 
-        x='Impact', y='Feature', orientation='h',
-        title=title, color='Color', color_discrete_map="identity"
-    )
-    fig.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False)
-# ==========================================
-    # UPDATE: Filtering, Sorting, and Anti-Ghosting
-    # ==========================================
-    plot_df['Abs_Impact'] = plot_df['Impact'].abs()
-    
-    # 1. Filter out mathematical noise
     plot_df = plot_df[plot_df['Abs_Impact'] > 1e-5]
     
-    # 2. Take Top 10, then sort ASCENDING so the biggest bar is at the TOP of the chart
     plot_df = plot_df.sort_values(by='Abs_Impact', ascending=False).head(10)
     plot_df = plot_df.sort_values(by='Abs_Impact', ascending=True) 
     
-    # 3. Determine colors
-    plot_df['Color'] = np.where(plot_df['Impact'] > 0, '#e74c3c', '#2ecc71')
+    plot_df['Color'] = np.where(plot_df['Impact'] > 0, '#2ecc71', '#e74c3c')
     
+    # Map the descriptions and rename the column for a cleaner tooltip UI
+    plot_df['Business Description'] = plot_df['Feature'].apply(get_feature_description)
+    
+    # ---> CUSTOM TOOLTIP (HOVER_DATA) <---
     fig = px.bar(
         plot_df, 
         x='Impact', 
@@ -238,14 +278,22 @@ def update_dashboard(n_clicks, client_id, model_type):
         title=title,
         color='Color',
         color_discrete_map="identity",
+        hover_data={
+            "Color": False, 
+            "Feature": False, 
+            "Abs_Impact": False, 
+            "Client Value": True,
+            "Model Weight": True,
+            "Impact": ':.4f', 
+            "Business Description": True
+        },
         height=650 
     )
     
-    # ---> THE FIX IS HERE: Force the Y-axis to ONLY use the current 10 features <---
     fig.update_yaxes(
         type='category',
         categoryorder='array',
-        categoryarray=plot_df['Feature'].tolist(), # Destroys the "ghost" bars
+        categoryarray=plot_df['Feature'].tolist(),
         title=None, 
         tickfont={'size': 12}
     )
@@ -257,13 +305,16 @@ def update_dashboard(n_clicks, client_id, model_type):
     
     fig.update_layout(
         showlegend=False,
-        margin=dict(l=20, r=20, t=60, b=40)
+        margin=dict(l=20, r=20, t=60, b=40),
+        # Ensures the tooltip wraps nicely and uses a readable font
+        hoverlabel=dict(bgcolor="white", font_size=13, font_family="Arial") 
     )
 
     return pred_ui, tree_path_text, fig
 
 if __name__ == '__main__':
-    # Only generate the 10,000 sample cache if it doesn't exist yet!
+    os.makedirs("results/dashboard", exist_ok=True)
+    
     if not os.path.exists(SAMPLE_PATH):
         logger.info("First run detected: Generating Dashboard Cache...")
         preprocessor = BaselinePreprocessor()
