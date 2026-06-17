@@ -18,8 +18,8 @@ class LightGBMConfig:
     max_depth: int = 3
     subsample: float = 0.5
     colsample_bytree: float = 0.8
-    #class_weight: str = "balanced"
-    class_weight: dict = field(default_factory=lambda: {0: 1.0, 1: 128.0})
+    class_weight: str = "balanced"
+    # class_weight: dict = field(default_factory=lambda: {0: 1.0, 1: 128.0})
     n_jobs: int = -1
     verbose: int = -1
     random_state: int = 42

@@ -16,7 +16,6 @@ from scripts.pipline import load_and_engineer_features
 # 0. INITIALIZE DROPDOWN DATA & DICTIONARY
 # ==========================================
 SAMPLE_PATH = "results/dashboard_sample.csv"
-# Pointing to the renamed file exactly as requested
 DICT_PATH = "results/dashboard/feature_descriptions.txt"
 
 try:
@@ -78,9 +77,14 @@ def get_feature_description(feature_name):
 
     return "No description available for this engineered feature."
 
-# Initialize the Dash app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
+# Initialize the Dash app with responsive meta tags for mobile
+app = dash.Dash(
+    __name__, 
+    external_stylesheets=[dbc.themes.FLATLY],
+    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}]
+)
 app.title = "Econometric ML Risk Dashboard"
+server = app.server
 
 # ==========================================
 # 1. DATA & MODEL LOADING HELPERS
@@ -104,27 +108,30 @@ def get_client_data(client_id: int):
         
         target = client_row['TARGET'].values[0]
         X_client = client_row.drop(columns=['SK_ID_CURR', 'TARGET'])
+        logger.info("*******************************************************************************")
+        logger.info(f"Client {client_id} loaded successfully. Target: {target}")
         return X_client, target
     except Exception as e:
         logger.error(f"Data loading error: {e}")
         return None, None
 
 # ==========================================
-# 2. UI LAYOUT
+# 2. UI LAYOUT (Mobile Responsive Grid)
 # ==========================================
 app.layout = dbc.Container([
     html.Div(id='dummy'),
     dbc.Row([
-        dbc.Col(html.H2("Credit Risk Auditing Dashboard", className="text-primary mt-4 mb-4"), width=12)
+        dbc.Col(html.H2("Credit Risk Auditing Dashboard", className="text-primary mt-4 mb-4 text-center text-lg-start"), xs=12)
     ]),
     
     dbc.Row([
+        # Mobile: takes 12 columns (100%), Large screens: takes 4 columns (33%)
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
                     html.H5("Control Panel", className="card-title"),
                     
-                    html.Label("Select Client ID:"),
+                    html.Label("1. Select Client ID:", className="fw-bold"),
                     dcc.Dropdown(
                         id="client-input",
                         options=CLIENT_OPTIONS,
@@ -132,7 +139,7 @@ app.layout = dbc.Container([
                         className="mb-3"
                     ),
                     
-                    html.Label("Select Model Architecture:"),
+                    html.Label("2. Select Model Architecture:", className="fw-bold"),
                     dcc.Dropdown(
                         id="model-selector",
                         options=[
@@ -141,13 +148,30 @@ app.layout = dbc.Container([
                             {'label': 'Black Box (LightGBM + SHAP)', 'value': 'lightgbm'}
                         ],
                         value='piecewise',
-                        className="mb-3"
+                        className="mb-4"
                     ),
+                    
+                    # ---> NEW: THE THRESHOLD SLIDER <---
+                    html.Label("3. Set Decision Threshold:", className="fw-bold"),
+                    html.Div(
+                        dcc.Slider(
+                            id='threshold-slider',
+                            min=0.0,
+                            max=1.0,
+                            step=0.01,
+                            value=0.50, # Default 50%
+                            marks={0: '0%', 0.5: '50%', 1: '100%'},
+                            tooltip={"placement": "bottom", "always_visible": True}
+                        ),
+                        className="mb-4 px-2"
+                    ),
+
                     dbc.Button("Audit Client", id="submit-btn", color="primary", className="w-100")
                 ])
-            ], className="shadow-sm")
-        ], width=4),
+            ], className="shadow-sm mb-4")
+        ], xs=12, lg=4), 
         
+        # Mobile: takes 12 columns (100%), Large screens: takes 8 columns (66%)
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
@@ -161,17 +185,16 @@ app.layout = dbc.Container([
                     html.H5("Mathematical Audit Trail (Top 10 Risk Drivers)", className="card-title"),
                     html.Div(id="tree-path-output", className="text-muted mb-2"),
                     
-                    # ---> THE VISUAL GUIDE FOR HOVERING <---
                     html.Div([
                         html.Span("💡 Guide: Hover your mouse over any bar to view the business definition, the client's exact actual value, and the mathematical weight applied.")
                     ], className="alert alert-info py-2 my-3 border-0"),
                     
-                    dcc.Graph(id="explainability-plot")
+                    dcc.Graph(id="explainability-plot", config={'displayModeBar': False}) # Hides the distracting plotly toolbar on mobile
                 ])
-            ], className="shadow-sm")
-        ], width=8)
+            ], className="shadow-sm mb-4")
+        ], xs=12, lg=8) 
     ])
-], fluid=True)
+], fluid=True, className="px-3 px-lg-5") # Adds padding so it doesn't touch the edges of the phone screen
 
 # ==========================================
 # 3. INTERACTIVITY & MATH LOGIC
@@ -180,12 +203,14 @@ app.layout = dbc.Container([
     [Output("prediction-output", "children"),
      Output("tree-path-output", "children"),
      Output("explainability-plot", "figure")],
-    [Input("submit-btn", "n_clicks")],
+    # Trigger callback when either the button is clicked OR the slider is moved
+    [Input("submit-btn", "n_clicks"),
+     Input("threshold-slider", "value")],
     [State("client-input", "value"),
      State("model-selector", "value")],
     prevent_initial_call=True
 )
-def update_dashboard(n_clicks, client_id, model_type):
+def update_dashboard(n_clicks, threshold, client_id, model_type):
     if not client_id:
         return dbc.Alert("Please select a valid Client ID.", color="warning"), "", dash.no_update
         
@@ -211,22 +236,38 @@ def update_dashboard(n_clicks, client_id, model_type):
         X_final = X_processed
 
     # Generate Prediction
-    prob = model_obj.predict_proba(X_final)[0, 1]
-    is_correct = (prob > 0.5) == actual_target
+    result = model_obj.predict_proba(X_final)
+    prob = result[0, 1]
+    
+    logger.info("**************************************************************")
+    logger.info(f"Client {client_id} predicted result: {prob:.4f} against Threshold: {threshold}")
+    
+    # ---> NEW: DYNAMIC THRESHOLD LOGIC <---
+    predicted_as_default = prob >= threshold
+    is_correct = predicted_as_default == actual_target
     
     status_color = "success" if is_correct else "danger"
-    status_text = "CORRECT" if is_correct else "INCORRECT"
+    status_text = "CORRECT (Model matches reality)" if is_correct else "INCORRECT (Model misclassified client)"
     actual_text = "Default" if actual_target == 1 else "Good Payer"
+    predicted_text = "Default" if predicted_as_default else "Good Payer"
     
     pred_ui = html.Div([
-        html.H3(f"Risk Score: {prob:.2%}", className="text-info"),
-        html.H5(f"Actual Outcome: {actual_text}"),
-        dbc.Badge(f"Model Assessment: {status_text}", color=status_color, className="p-2 fs-6")
+        dbc.Row([
+            dbc.Col([
+                html.H4("Actual Outcome:", className="text-muted"),
+                html.H3(actual_text, className="text-dark")
+            ], xs=6),
+            dbc.Col([
+                html.H4("Model Prediction:", className="text-muted"),
+                html.H3(f"{predicted_text} ({prob:.1%})", className="text-info")
+            ], xs=6)
+        ], className="mb-3 text-center text-lg-start"),
+        dbc.Badge(status_text, color=status_color, className="p-2 fs-6 w-100")
     ])
     
     tree_path_text = ""
     feature_names = X_final.columns.tolist()
-    client_values = X_final.iloc[0].values # The exact raw values for THIS specific client
+    client_values = X_final.iloc[0].values 
 
     # ---> EXTRACTING LOCAL FEATURES AND WEIGHTS <---
     if model_type == 'logistic':
@@ -243,7 +284,7 @@ def update_dashboard(n_clicks, client_id, model_type):
         
         plot_df = pd.DataFrame({'Feature': feature_names, 'Client Value': client_values, 'Model Weight': weights, 'Impact': impacts})
         tree_path_text = html.Strong(f"Assigned to Borrower Segment: Leaf Node {leaf_id}")
-        title = f"Local Econometric Equation (Leaf {leaf_id}): Feature Value × Local Coefficient"
+        title = f"Local Econometric Equation (Leaf {leaf_id})"
         
     elif model_type == 'lightgbm':
         explainer = shap.TreeExplainer(model_obj)
@@ -254,7 +295,6 @@ def update_dashboard(n_clicks, client_id, model_type):
         plot_df = pd.DataFrame({'Feature': feature_names, 'Client Value': client_values, 'Model Weight': "N/A (Tree Based)", 'Impact': impacts})
         title = "Black Box Approximation: SHAP Values"
 
-    # Format numbers so they are readable in the hover
     plot_df['Client Value'] = plot_df['Client Value'].apply(lambda x: f"{x:,.4g}" if isinstance(x, (int, float)) else x)
     plot_df['Model Weight'] = plot_df['Model Weight'].apply(lambda x: f"{x:,.4g}" if isinstance(x, (int, float)) else x)
 
@@ -264,12 +304,10 @@ def update_dashboard(n_clicks, client_id, model_type):
     plot_df = plot_df.sort_values(by='Abs_Impact', ascending=False).head(10)
     plot_df = plot_df.sort_values(by='Abs_Impact', ascending=True) 
     
-    plot_df['Color'] = np.where(plot_df['Impact'] > 0, '#2ecc71', '#e74c3c')
+    plot_df['Color'] = np.where(plot_df['Impact'] > 0, '#e74c3c', '#2ecc71')
     
-    # Map the descriptions and rename the column for a cleaner tooltip UI
     plot_df['Business Description'] = plot_df['Feature'].apply(get_feature_description)
     
-    # ---> CUSTOM TOOLTIP (HOVER_DATA) <---
     fig = px.bar(
         plot_df, 
         x='Impact', 
@@ -287,7 +325,7 @@ def update_dashboard(n_clicks, client_id, model_type):
             "Impact": ':.4f', 
             "Business Description": True
         },
-        height=650 
+        height=500 # Slightly reduced height so it fits on a mobile screen better without scrolling
     )
     
     fig.update_yaxes(
@@ -295,19 +333,18 @@ def update_dashboard(n_clicks, client_id, model_type):
         categoryorder='array',
         categoryarray=plot_df['Feature'].tolist(),
         title=None, 
-        tickfont={'size': 12}
+        tickfont={'size': 10} # Smaller font for mobile compatibility
     )
     
     fig.update_xaxes(
         title='Mathematical Impact on Final Risk Score', 
-        tickfont={'size': 12}
+        tickfont={'size': 11}
     )
     
     fig.update_layout(
         showlegend=False,
-        margin=dict(l=20, r=20, t=60, b=40),
-        # Ensures the tooltip wraps nicely and uses a readable font
-        hoverlabel=dict(bgcolor="white", font_size=13, font_family="Arial") 
+        margin=dict(l=10, r=10, t=40, b=40),
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial") 
     )
 
     return pred_ui, tree_path_text, fig
@@ -319,7 +356,7 @@ if __name__ == '__main__':
         logger.info("First run detected: Generating Dashboard Cache...")
         preprocessor = BaselinePreprocessor()
         df_merged = load_and_engineer_features(preprocessor, dataset_type="train")
-        df_merged.sample(10000, random_state=42).to_csv(SAMPLE_PATH, index=False)
+        df_merged.sample(50000, random_state=42).to_csv(SAMPLE_PATH, index=False)
         logger.info("Cache generated successfully.")
         
     logger.info("Starting Dash Server...")
