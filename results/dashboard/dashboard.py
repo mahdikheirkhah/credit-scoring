@@ -304,7 +304,7 @@ def update_dashboard(n_clicks, threshold, client_id, model_type):
     plot_df = plot_df.sort_values(by='Abs_Impact', ascending=False).head(10)
     plot_df = plot_df.sort_values(by='Abs_Impact', ascending=True) 
     
-    plot_df['Color'] = np.where(plot_df['Impact'] > 0, '#e74c3c', '#2ecc71')
+    plot_df['Color'] = np.where(plot_df['Impact'] > 0, '#2ecc71', '#e74c3c')
     
     plot_df['Business Description'] = plot_df['Feature'].apply(get_feature_description)
     
